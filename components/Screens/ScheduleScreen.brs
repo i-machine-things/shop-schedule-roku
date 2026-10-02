@@ -85,7 +85,11 @@ sub requestFetch()
 end sub
 
 sub onRefreshTimer()
-    requestFetch()
+    try
+        requestFetch()
+    catch e
+        print "onRefreshTimer error: "; e.getMessage()
+    end try
 end sub
 
 ' Resets Roku's idle/screensaver countdown by sending a harmless local ECP
@@ -96,31 +100,42 @@ end sub
 ' garbage collected mid-flight, but the response is never read -- we don't
 ' care if it succeeds.
 sub onHeartbeat()
-    m.heartbeatRequest = CreateObject("roUrlTransfer")
-    m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Left")
-    m.heartbeatPort = CreateObject("roMessagePort")
-    m.heartbeatRequest.SetPort(m.heartbeatPort)
-    m.heartbeatRequest.AsyncPostFromString("")
+    try
+        m.heartbeatRequest = CreateObject("roUrlTransfer")
+        m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Left")
+        m.heartbeatPort = CreateObject("roMessagePort")
+        m.heartbeatRequest.SetPort(m.heartbeatPort)
+        m.heartbeatRequest.AsyncPostFromString("")
+    catch e
+        print "onHeartbeat error: "; e.getMessage()
+    end try
 end sub
 
 sub onClockTick()
     updateClock()
 end sub
 
+' This is the single best "is the render thread still alive" signal on
+' screen -- it ticks every second independent of scrolling. If it's frozen
+' too, the whole thread is dead, not just the scroll state machine.
 sub updateClock()
-    dt = CreateObject("roDateTime")
-    dt.ToLocalTime()
-    h = dt.GetHours()
-    ampm = "AM"
-    if h = 0 then
-        h = 12
-    else if h = 12 then
-        ampm = "PM"
-    else if h > 12 then
-        h = h - 12
-        ampm = "PM"
-    end if
-    m.clockLabel.text = h.ToStr() + ":" + leftPad(dt.GetMinutes().ToStr(), 2) + ":" + leftPad(dt.GetSeconds().ToStr(), 2) + " " + ampm
+    try
+        dt = CreateObject("roDateTime")
+        dt.ToLocalTime()
+        h = dt.GetHours()
+        ampm = "AM"
+        if h = 0 then
+            h = 12
+        else if h = 12 then
+            ampm = "PM"
+        else if h > 12 then
+            h = h - 12
+            ampm = "PM"
+        end if
+        m.clockLabel.text = h.ToStr() + ":" + leftPad(dt.GetMinutes().ToStr(), 2) + ":" + leftPad(dt.GetSeconds().ToStr(), 2) + " " + ampm
+    catch e
+        print "updateClock error: "; e.getMessage()
+    end try
 end sub
 
 function leftPad(s as String, width as Integer) as String
@@ -132,27 +147,31 @@ function leftPad(s as String, width as Integer) as String
 end function
 
 sub onScheduleData()
-    data = m.scheduleTask.scheduleData
-    m.loadingLabel.visible = false
-    if data = invalid then
-        suffix = " Showing last known schedule."
-        if m.contentHeight = 0 then suffix = " No schedule loaded yet."
-        m.errorLabel.text = "Connection problem: " + m.scheduleTask.errorMessage + suffix
-        m.errorBanner.visible = true
-        ' Leave whatever's already on screen alone -- a transient fetch failure
-        ' shouldn't blank an otherwise-fine kiosk display.
-        return
-    end if
+    try
+        data = m.scheduleTask.scheduleData
+        m.loadingLabel.visible = false
+        if data = invalid then
+            suffix = " Showing last known schedule."
+            if m.contentHeight = 0 then suffix = " No schedule loaded yet."
+            m.errorLabel.text = "Connection problem: " + m.scheduleTask.errorMessage + suffix
+            m.errorBanner.visible = true
+            ' Leave whatever's already on screen alone -- a transient fetch failure
+            ' shouldn't blank an otherwise-fine kiosk display.
+            return
+        end if
 
-    m.errorBanner.visible = false
+        m.errorBanner.visible = false
 
-    reportDate = ""
-    thruDate = ""
-    if data.report_date <> invalid then reportDate = data.report_date
-    if data.thru_date <> invalid then thruDate = data.thru_date
-    m.metaLabel.text = "Report: " + reportDate + "   |   Thru: " + thruDate
+        reportDate = ""
+        thruDate = ""
+        if data.report_date <> invalid then reportDate = data.report_date
+        if data.thru_date <> invalid then thruDate = data.thru_date
+        m.metaLabel.text = "Report: " + reportDate + "   |   Thru: " + thruDate
 
-    buildContent(data.sections)
+        buildContent(data.sections)
+    catch e
+        print "onScheduleData error: "; e.getMessage()
+    end try
 end sub
 
 ' Each section's header bar is rendered inline, at its real scrolled position.
@@ -420,24 +439,34 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
 end function
 
 sub manualScroll(delta as Integer)
-    maxScroll = m.contentHeight - m.viewportHeight
-    if maxScroll <= 0 then return
+    try
+        maxScroll = m.contentHeight - m.viewportHeight
+        if maxScroll <= 0 then return
 
-    m.scrollTimer.control = "stop"
-    m.pauseTimer.control = "stop"
-    m.scrollState = "manualPaused"
+        m.scrollTimer.control = "stop"
+        m.pauseTimer.control = "stop"
+        m.scrollState = "manualPaused"
 
-    m.scrollY = m.scrollY + delta
-    if m.scrollY < 0 then m.scrollY = 0
-    if m.scrollY > maxScroll then m.scrollY = maxScroll
-    applyScroll()
+        m.scrollY = m.scrollY + delta
+        if m.scrollY < 0 then m.scrollY = 0
+        if m.scrollY > maxScroll then m.scrollY = maxScroll
+        applyScroll()
 
-    m.manualPauseTimer.control = "stop"
-    m.manualPauseTimer.control = "start"
+        m.manualPauseTimer.control = "stop"
+        m.manualPauseTimer.control = "start"
+    catch e
+        print "manualScroll error: "; e.getMessage()
+        m.scrollState = "idle"
+    end try
 end sub
 
 sub onManualPauseTimerFire()
-    if m.scrollState <> "manualPaused" then return
-    m.scrollState = "scrolling"
-    m.scrollTimer.control = "start"
+    try
+        if m.scrollState <> "manualPaused" then return
+        m.scrollState = "scrolling"
+        m.scrollTimer.control = "start"
+    catch e
+        print "onManualPauseTimerFire error: "; e.getMessage()
+        m.scrollState = "idle"
+    end try
 end sub
