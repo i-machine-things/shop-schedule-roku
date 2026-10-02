@@ -56,6 +56,15 @@
         <Label id="loadingLabel" text="Loading schedule..." translation="[760, 520]" font="font:LargeSystemFont" color="0x4AAFFFFF" />
 
         <ScheduleTask id="scheduleTask" />
+        <!-- "Ghost video" screensaver prevention: Video.enableScreenSaverWhilePlaying
+             defaults to false, which blocks Roku's screensaver while ANY video is
+             playing, regardless of size. This plays a tiny bundled black clip,
+             invisible off-screen, purely to keep that flag satisfied -- confirmed
+             the only approach that actually works (an ECP-keypress "heartbeat" was
+             tried first and confirmed NOT to work on real hardware; see
+             CODING_NOTES.md). Real video node, not a Task -- Video playback isn't
+             subject to the MAIN|TASK-thread restriction roUrlTransfer has. -->
+        <Video id="ghostVideo" width="2" height="2" translation="[-100, -100]" loop="true" enableScreenSaverWhilePlaying="false" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />

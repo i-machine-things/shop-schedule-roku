@@ -81,7 +81,7 @@ jobs:
         run: |
           mkdir -p build
           zip -r "build/shop-schedule-roku-pr-${{ github.event.pull_request.number }}.zip" \
-            manifest components source images \
+            manifest components source images media \
             -x '*.bak'
 
       - name: Upload artifact

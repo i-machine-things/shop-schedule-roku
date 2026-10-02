@@ -47,11 +47,9 @@ The app launches immediately.
 
 ## 🌙 Keeping the display awake
 
-Roku's screensaver is driven by remote-control input, not app activity — an unattended, auto-scrolling kiosk will still trigger it like any other channel would, since there's no reliable in-app way to prevent the system screensaver for a normal sideloaded channel. (An earlier version of this app tried periodically faking a remote keypress to reset the idle timer; confirmed on real hardware that Roku doesn't count that as real user presence, so it didn't work and was removed.)
+Handled automatically — no device settings to change. Roku's screensaver is driven by remote-control input, not app activity, so a silent auto-scrolling kiosk would otherwise trigger it like any other channel. The app plays a tiny, invisible, looping video off-screen for exactly this reason: Roku won't activate the screensaver while any video is playing, regardless of its size. (An earlier version tried periodically faking a remote keypress instead; confirmed on real hardware that Roku doesn't count that as real user presence, so it didn't work and was replaced with this.)
 
-Disable it once, on the device itself:
-1. **Settings → Theme → Screensaver → Wait time → Never**
-2. **Settings → System → Power → Auto power savings** — uncheck "After 20 minutes of no interaction" (a separate timeout from the screensaver)
+If the screensaver still activates for some reason, `Settings → System → Power → Auto power savings` is a separate TV-level timeout the app has no way to touch — uncheck "After 20 minutes of no interaction" there too.
 
 ---
 

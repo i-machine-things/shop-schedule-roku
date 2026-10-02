@@ -44,6 +44,7 @@ sub init()
     m.pauseTimer = m.top.findNode("pauseTimer")
     m.clockTimer = m.top.findNode("clockTimer")
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
+    m.ghostVideo = m.top.findNode("ghostVideo")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -68,12 +69,23 @@ sub screenShown()
     m.top.setFocus(true)
     updateClock()
     m.clockTimer.control = "start"
+    startGhostVideo()
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")
 
     requestFetch()
     m.refreshTimer.control = "start"
+end sub
+
+' See the ghostVideo node's comment in the XML. Content is a real bundled
+' video file (media/ghost.mp4) -- Video nodes need actual content to play,
+' even invisible/off-screen ones; there's no "fake playing" state.
+sub startGhostVideo()
+    content = CreateObject("roSGNode", "ContentNode")
+    content.url = "pkg:/media/ghost.mp4"
+    m.ghostVideo.content = content
+    m.ghostVideo.control = "play"
 end sub
 
 sub requestFetch()

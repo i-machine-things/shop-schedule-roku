@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir -p build
           zip -r "build/shop-schedule-roku-${RELEASE_TAG}.zip" \
-            manifest components source images \
+            manifest components source images media \
             -x '*.bak'
 
       - name: Create GitHub release
