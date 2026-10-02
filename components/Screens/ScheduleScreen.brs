@@ -45,6 +45,7 @@ sub init()
     m.clockTimer = m.top.findNode("clockTimer")
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
     m.ghostVideo = m.top.findNode("ghostVideo")
+    m.ghostVideo.observeField("state", "onGhostVideoState")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -86,6 +87,21 @@ sub startGhostVideo()
     content.url = "pkg:/media/ghost.mp4"
     m.ghostVideo.content = content
     m.ghostVideo.control = "play"
+end sub
+
+' Temporary diagnostic -- logs every ghostVideo state transition to the debug
+' console so a live telnet session can show why the screensaver still fires.
+' Remove once the root cause is confirmed and fixed.
+sub onGhostVideoState()
+    st = m.ghostVideo.state
+    print "[GHOST] state="; st
+    if st = "error" then
+        print "[GHOST] errorCode="; m.ghostVideo.errorCode; " errorMsg="; m.ghostVideo.errorMsg
+    end if
+    if st = "finished" or st = "stopped" then
+        print "[GHOST] not playing -- restarting"
+        startGhostVideo()
+    end if
 end sub
 
 sub requestFetch()
