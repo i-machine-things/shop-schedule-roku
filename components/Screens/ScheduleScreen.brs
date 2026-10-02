@@ -43,7 +43,6 @@ sub init()
     m.scrollTimer = m.top.findNode("scrollTimer")
     m.pauseTimer = m.top.findNode("pauseTimer")
     m.clockTimer = m.top.findNode("clockTimer")
-    m.heartbeatTask = m.top.findNode("heartbeatTask")
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
@@ -69,7 +68,6 @@ sub screenShown()
     m.top.setFocus(true)
     updateClock()
     m.clockTimer.control = "start"
-    m.heartbeatTask.control = "RUN"
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")

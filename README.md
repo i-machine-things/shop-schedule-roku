@@ -16,7 +16,6 @@ Roku's public SDK has no web-view/embedded-browser component, so this channel ca
 * **Native auto-scrolling display** grouped by work center, matching the web kiosk's department color scheme.
 * **Sticky work-center headers** — stays fixed at the top while its jobs scroll past, swapped for the next section's header exactly when it reaches the top (like the web kiosk's `position:sticky` section headers).
 * **Resilient to network blips** — a failed poll shows a small warning banner without blanking the last good schedule.
-* **Stays awake unattended** — periodically resets Roku's own idle/screensaver timer, since an auto-scrolling kiosk with no remote input would otherwise still go idle like any other channel.
 * **Manual scroll** — Up/Down on the remote scrolls directly; auto-scroll resumes automatically a few seconds after the last press.
 * **One-time setup** — enter the server address once; it's remembered in the Roku's registry.
 
@@ -43,6 +42,16 @@ Grab the latest `shop-schedule-roku-vX.Y.Z.zip` from the [Releases](../../releas
 3. **Upload** the zip, then **Install**.
 
 The app launches immediately.
+
+---
+
+## 🌙 Keeping the display awake
+
+Roku's screensaver is driven by remote-control input, not app activity — an unattended, auto-scrolling kiosk will still trigger it like any other channel would, since there's no reliable in-app way to prevent the system screensaver for a normal sideloaded channel. (An earlier version of this app tried periodically faking a remote keypress to reset the idle timer; confirmed on real hardware that Roku doesn't count that as real user presence, so it didn't work and was removed.)
+
+Disable it once, on the device itself:
+1. **Settings → Theme → Screensaver → Wait time → Never**
+2. **Settings → System → Power → Auto power savings** — uncheck "After 20 minutes of no interaction" (a separate timeout from the screensaver)
 
 ---
 
