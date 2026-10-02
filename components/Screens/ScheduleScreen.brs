@@ -1,24 +1,19 @@
-' Column layout for job rows -- fixed x offsets within a 1920-wide screen,
-' mirroring the web kiosk's table column order (job/customer/part/rev/oper/
-' qty/sched/currwc/remhrs/shipqty/promised). Single-line rows (part number +
-' description combined, sched start/end combined) rather than the web's
-' multi-line cells -- simpler and more reliable to lay out correctly in
-' SceneGraph than wrestling per-cell text wrapping.
+' Only 5 fields are shown per job (per explicit scope decision): job number,
+' customer, description, operation name, and current work center. Single-line
+' rows with generous column widths -- an earlier 11-column layout truncated
+' badly on real hardware (Roku's system fonts render much larger than this
+' was designed around). Column x offsets within a 1920-wide screen:
 sub init()
     m.COLS = [
-        { x: 30,   w: 100, key: "job" }
-        { x: 140,  w: 170, key: "customer" }
-        { x: 320,  w: 480, key: "partdesc" }
-        { x: 810,  w: 60,  key: "rev" }
-        { x: 880,  w: 90,  key: "oper" }
-        { x: 980,  w: 70,  key: "qty" }
-        { x: 1060, w: 190, key: "sched" }
-        { x: 1260, w: 150, key: "currwc" }
-        { x: 1420, w: 90,  key: "remhrs" }
-        { x: 1520, w: 90,  key: "shipqty" }
-        { x: 1620, w: 220, key: "promised" }
+        { x: 40,   w: 180, key: "job" }
+        { x: 240,  w: 320, key: "customer" }
+        { x: 580,  w: 850, key: "description" }
+        { x: 1450, w: 150, key: "oper" }
+        { x: 1620, w: 260, key: "currwc" }
     ]
 
+    ' Keyword -> (bg, accent) color pairs, ported from update_schedule.py's
+    ' _DEPT_DEFAULTS so department section colors match the web kiosk.
     m.DEPT_COLORS = {
         assembly:   { bg: "0x0D2B1AFF", accent: "0x1A6640FF" }
         cnc:        { bg: "0x0D1A2BFF", accent: "0x1A4466FF" }
@@ -33,6 +28,11 @@ sub init()
     m.titleLabel = m.top.findNode("titleLabel")
     m.metaLabel = m.top.findNode("metaLabel")
     m.clockLabel = m.top.findNode("clockLabel")
+    m.stickyHeader = m.top.findNode("stickyHeader")
+    m.stickyHeaderBg = m.top.findNode("stickyHeaderBg")
+    m.stickyAccent = m.top.findNode("stickyAccent")
+    m.stickyWcLabel = m.top.findNode("stickyWcLabel")
+    m.stickyDeptLabel = m.top.findNode("stickyDeptLabel")
     m.viewport = m.top.findNode("viewport")
     m.scrollContent = m.top.findNode("scrollContent")
     m.errorBanner = m.top.findNode("errorBanner")
@@ -43,26 +43,29 @@ sub init()
     m.scrollTimer = m.top.findNode("scrollTimer")
     m.pauseTimer = m.top.findNode("pauseTimer")
     m.clockTimer = m.top.findNode("clockTimer")
+    m.heartbeatTimer = m.top.findNode("heartbeatTimer")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
     m.scrollTimer.observeField("fire", "onScrollTick")
     m.pauseTimer.observeField("fire", "onPauseTimerFire")
     m.clockTimer.observeField("fire", "onClockTick")
+    m.heartbeatTimer.observeField("fire", "onHeartbeat")
 
-    m.viewportHeight = 1080 - 70
+    m.viewportHeight = 1080 - 126
     m.contentHeight = 0
     m.scrollY = 0
     m.scrollState = "idle"
     m.SCROLL_SPEED = 1.1
-
-    m.MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 }
+    m.sectionBounds = []
+    m.currentSectionIdx = -1
 end sub
 
 sub screenShown()
     m.top.setFocus(true)
     updateClock()
     m.clockTimer.control = "start"
+    m.heartbeatTimer.control = "start"
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")
@@ -78,6 +81,20 @@ end sub
 
 sub onRefreshTimer()
     requestFetch()
+end sub
+
+' Resets Roku's idle/screensaver countdown by sending a harmless local ECP
+' keypress, the same way a real remote press would. "Up" is used because
+' nothing in this app (or AppScene) handles it -- it's a true no-op here,
+' unlike "options" (reconfigure) or "rewind" (AppScene's easter egg). Fired
+' fire-and-forget: the request is stashed on m. so it isn't garbage collected
+' mid-flight, but the response is never read -- we don't care if it succeeds.
+sub onHeartbeat()
+    m.heartbeatRequest = CreateObject("roUrlTransfer")
+    m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Up")
+    m.heartbeatPort = CreateObject("roMessagePort")
+    m.heartbeatRequest.SetPort(m.heartbeatPort)
+    m.heartbeatRequest.AsyncPostFromString("")
 end sub
 
 sub onClockTick()
@@ -132,23 +149,37 @@ sub onScheduleData()
     buildContent(data.sections)
 end sub
 
+' Rows are built directly from job data -- no inline section header rows.
+' The sticky header above the viewport is the only visible WC header; a thin
+' accent-colored divider marks where each new section's rows begin.
 sub buildContent(sections as Object)
     m.scrollContent.removeChildren(m.scrollContent.getChildren(-1, 0))
     m.scrollTimer.control = "stop"
     m.pauseTimer.control = "stop"
     m.scrollState = "idle"
+    m.sectionBounds = []
+    m.currentSectionIdx = -1
 
     y = 0
     for each section in sections
         if section.jobs <> invalid and section.jobs.Count() > 0 then
-            headerGroup = buildSectionHeader(section, y)
-            m.scrollContent.appendChild(headerGroup)
-            y = y + 56
+            m.sectionBounds.push({ startY: y, section: section })
+
+            if m.sectionBounds.Count() > 1 then
+                divider = CreateObject("roSGNode", "Rectangle")
+                divider.width = 1920
+                divider.height = 4
+                divider.color = colorsForDept(section.department).accent
+                divider.translation = [0, y]
+                m.scrollContent.appendChild(divider)
+                y = y + 4
+                m.sectionBounds[m.sectionBounds.Count() - 1].startY = y
+            end if
 
             for each job in section.jobs
                 rowGroup = buildJobRow(job, y)
                 m.scrollContent.appendChild(rowGroup)
-                y = y + 48
+                y = y + 60
             end for
         end if
     end for
@@ -157,46 +188,28 @@ sub buildContent(sections as Object)
     m.scrollY = 0
     m.scrollContent.translation = [0, 0]
 
+    if m.sectionBounds.Count() > 0 then
+        updateStickyHeader(0)
+    end if
+
     if m.contentHeight > m.viewportHeight then
         m.scrollState = "scrolling"
         m.scrollTimer.control = "start"
     end if
 end sub
 
-function buildSectionHeader(section as Object, y as Integer) as Object
+sub updateStickyHeader(idx as Integer)
+    if idx = m.currentSectionIdx then return
+    if idx < 0 or idx >= m.sectionBounds.Count() then return
+    m.currentSectionIdx = idx
+
+    section = m.sectionBounds[idx].section
     colors = colorsForDept(section.department)
-
-    group = CreateObject("roSGNode", "Group")
-    group.translation = [0, y]
-
-    bg = CreateObject("roSGNode", "Rectangle")
-    bg.width = 1920
-    bg.height = 56
-    bg.color = colors.bg
-    group.appendChild(bg)
-
-    accentBar = CreateObject("roSGNode", "Rectangle")
-    accentBar.width = 6
-    accentBar.height = 56
-    accentBar.color = colors.accent
-    group.appendChild(accentBar)
-
-    wcLabel = CreateObject("roSGNode", "Label")
-    wcLabel.text = section.wc
-    wcLabel.translation = [30, 14]
-    wcLabel.font = "font:LargeBoldSystemFont"
-    wcLabel.color = "0xFFFFFFFF"
-    group.appendChild(wcLabel)
-
-    deptLabel = CreateObject("roSGNode", "Label")
-    deptLabel.text = section.department + "   -   " + section.wc_group
-    deptLabel.translation = [360, 20]
-    deptLabel.font = "font:SmallSystemFont"
-    deptLabel.color = "0x999999FF"
-    group.appendChild(deptLabel)
-
-    return group
-end function
+    m.stickyHeaderBg.color = colors.bg
+    m.stickyAccent.color = colors.accent
+    m.stickyWcLabel.text = section.wc
+    m.stickyDeptLabel.text = section.department + "   -   " + section.wc_group
+end sub
 
 function colorsForDept(department as String) as Object
     deptLower = LCase(department)
@@ -214,35 +227,15 @@ function buildJobRow(job as Object, y as Integer) as Object
 
     bg = CreateObject("roSGNode", "Rectangle")
     bg.width = 1920
-    bg.height = 48
+    bg.height = 60
     bg.color = "0x0A0A14FF"
     group.appendChild(bg)
 
-    overdue = isOverdue(job.promised)
-    promisedColor = "0xCCCCCCFF"
-    if overdue then promisedColor = "0xFF5555FF"
-
-    partDesc = job.part
-    if job.description <> invalid and job.description <> "" then
-        partDesc = partDesc + " - " + job.description
-    end if
-
-    schedText = job.sch_start
-    if job.sch_end <> invalid and job.sch_end <> "" and job.sch_end <> job.sch_start then
-        schedText = schedText + " to " + job.sch_end
-    end if
-
-    addCell(group, colByKey("job"),      job.job,      "0x4AAFFFFF", "font:MediumBoldSystemFont")
-    addCell(group, colByKey("customer"), job.customer, "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("partdesc"), partDesc,     "0x999999FF", "font:SmallSystemFont")
-    addCell(group, colByKey("rev"),      job.rev,      "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("oper"),     job.oper,     "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("qty"),      job.make_qty, "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("sched"),    schedText,    "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("currwc"),   job.curr_wc,  "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("remhrs"),   job.rem_hrs,  "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("shipqty"),  job.ship_qty, "0xCCCCCCFF", "font:SmallSystemFont")
-    addCell(group, colByKey("promised"), job.promised, promisedColor, "font:MediumBoldSystemFont")
+    addCell(group, colByKey("job"),         job.job,         "0x4AAFFFFF", "font:MediumBoldSystemFont")
+    addCell(group, colByKey("customer"),    job.customer,    "0xCCCCCCFF", "font:MediumSystemFont")
+    addCell(group, colByKey("description"), job.description, "0x999999FF", "font:MediumSystemFont")
+    addCell(group, colByKey("oper"),        job.oper,        "0xCCCCCCFF", "font:MediumSystemFont")
+    addCell(group, colByKey("currwc"),      job.curr_wc,     "0xFFFFFFFF", "font:MediumBoldSystemFont")
 
     return group
 end function
@@ -258,34 +251,12 @@ sub addCell(parent as Object, col as Object, text as String, color as String, fo
     label = CreateObject("roSGNode", "Label")
     if text = invalid then text = ""
     label.text = text
-    label.translation = [col.x, 12]
+    label.translation = [col.x, 16]
     label.width = col.w
     label.font = font
     label.color = color
     parent.appendChild(label)
 end sub
-
-' Dates are "DD-Mon-YY" (e.g. "16-Oct-26"), matching the PDF parser's format.
-function isOverdue(promised as String) as Boolean
-    if promised = invalid or promised = "" then return false
-
-    parts = promised.Split("-")
-    if parts.Count() <> 3 then return false
-
-    day = parts[0].ToInt()
-    monKey = LCase(parts[1])
-    yy = parts[2].ToInt()
-    if m.MONTHS[monKey] = invalid then return false
-    month = m.MONTHS[monKey]
-    year = 2000 + yy
-
-    dt = CreateObject("roDateTime")
-    dt.ToLocalTime()
-    todayKey = dt.GetYear() * 10000 + (dt.GetMonth() * 100) + dt.GetDayOfMonth()
-    promisedKey = year * 10000 + (month * 100) + day
-
-    return promisedKey < todayKey
-end function
 
 ' Scroll loop: scroll down, pause at the bottom, snap to top, pause there,
 ' repeat. Not a seamless infinite-wrap like the web kiosk's doubled-content
@@ -298,20 +269,37 @@ sub onScrollTick()
     m.scrollY = m.scrollY + m.SCROLL_SPEED
     if m.scrollY >= maxScroll then
         m.scrollY = maxScroll
-        m.scrollContent.translation = [0, -m.scrollY]
+        applyScroll()
         m.scrollState = "pausedAtBottom"
         m.scrollTimer.control = "stop"
         m.pauseTimer.duration = 3
         m.pauseTimer.control = "start"
     else
-        m.scrollContent.translation = [0, -m.scrollY]
+        applyScroll()
     end if
+end sub
+
+sub applyScroll()
+    m.scrollContent.translation = [0, -m.scrollY]
+
+    ' Find which section the viewport's top edge currently sits within, and
+    ' swap the sticky header the moment that section starts, same as the web
+    ' kiosk's CSS position:sticky section headers.
+    idx = 0
+    for i = 0 to m.sectionBounds.Count() - 1
+        if m.sectionBounds[i].startY <= m.scrollY then
+            idx = i
+        else
+            exit for
+        end if
+    end for
+    updateStickyHeader(idx)
 end sub
 
 sub onPauseTimerFire()
     if m.scrollState = "pausedAtBottom" then
         m.scrollY = 0
-        m.scrollContent.translation = [0, 0]
+        applyScroll()
         m.scrollState = "pausedAtTop"
         m.pauseTimer.duration = 2
         m.pauseTimer.control = "start"

@@ -9,15 +9,27 @@
     <children>
         <Rectangle width="1920" height="1080" color="0x07070FFF" />
 
-        <!-- Header -->
+        <!-- App header -->
         <Rectangle id="header" width="1920" height="70" color="0x0B0B18FF">
             <Label id="titleLabel" text="SHOP SCHEDULE" translation="[30, 20]" font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
             <Label id="metaLabel" text="" translation="[1020, 14]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x888888FF" />
             <Label id="clockLabel" text="" translation="[1020, 36]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x4AAFFFFF" />
         </Rectangle>
 
-        <!-- Scroll viewport: everything below the header -->
-        <Group id="viewport" translation="[0, 70]">
+        <!-- Sticky work-center header -- stays fixed, shows whichever section is
+             currently scrolled to the top; replaced by the next section's info
+             once that section reaches the top, matching the web kiosk's behavior. -->
+        <Group id="stickyHeader" translation="[0, 70]">
+            <Rectangle id="stickyHeaderBg" width="1920" height="56" color="0x1A1A1AFF" />
+            <Rectangle id="stickyAccent" width="6" height="56" color="0x666666FF" />
+            <Label id="stickyWcLabel" text="" translation="[30, 14]" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
+            <Label id="stickyDeptLabel" text="" translation="[360, 20]" font="font:SmallSystemFont" color="0x999999FF" />
+        </Group>
+
+        <!-- Scroll viewport: below the app header AND the sticky WC header.
+             clippingRect is required -- without it, scrolled rows render on top
+             of/behind the headers above instead of staying confined below them. -->
+        <Group id="viewport" translation="[0, 126]" clippingRect="[0, 0, 1920, 954]">
             <Group id="scrollContent" translation="[0, 0]" />
         </Group>
 
@@ -33,5 +45,7 @@
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
         <Timer id="clockTimer" repeat="true" duration="1" />
+        <!-- Resets Roku's idle/screensaver timer -- see onHeartbeat() in the .brs -->
+        <Timer id="heartbeatTimer" repeat="true" duration="90" />
     </children>
 </component>
