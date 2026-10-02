@@ -56,13 +56,17 @@
         <Label id="loadingLabel" text="Loading schedule..." translation="[760, 520]" font="font:LargeSystemFont" color="0x4AAFFFFF" />
 
         <ScheduleTask id="scheduleTask" />
+        <!-- roUrlTransfer (used to reset the idle/screensaver timer) is a
+             MAIN|TASK-only component -- it cannot run directly in this Scene
+             component's script (confirmed via telnet debug console: fatal
+             "Interface not a member of BrightScript Component", not even
+             catchable by try/catch). Runs its own loop on its own thread. -->
+        <HeartbeatTask id="heartbeatTask" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
         <Timer id="clockTimer" repeat="true" duration="1" />
         <!-- Resumes auto-scroll this long after the last manual Up/Down press -->
         <Timer id="manualPauseTimer" repeat="false" duration="10" />
-        <!-- Resets Roku's idle/screensaver timer -- see onHeartbeat() in the .brs -->
-        <Timer id="heartbeatTimer" repeat="true" duration="90" />
     </children>
 </component>

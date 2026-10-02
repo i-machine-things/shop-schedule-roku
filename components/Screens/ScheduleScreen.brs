@@ -43,7 +43,7 @@ sub init()
     m.scrollTimer = m.top.findNode("scrollTimer")
     m.pauseTimer = m.top.findNode("pauseTimer")
     m.clockTimer = m.top.findNode("clockTimer")
-    m.heartbeatTimer = m.top.findNode("heartbeatTimer")
+    m.heartbeatTask = m.top.findNode("heartbeatTask")
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
@@ -51,7 +51,6 @@ sub init()
     m.scrollTimer.observeField("fire", "onScrollTick")
     m.pauseTimer.observeField("fire", "onPauseTimerFire")
     m.clockTimer.observeField("fire", "onClockTick")
-    m.heartbeatTimer.observeField("fire", "onHeartbeat")
     m.manualPauseTimer.observeField("fire", "onManualPauseTimerFire")
 
     m.viewportHeight = 1080 - 186
@@ -70,7 +69,7 @@ sub screenShown()
     m.top.setFocus(true)
     updateClock()
     m.clockTimer.control = "start"
-    m.heartbeatTimer.control = "start"
+    m.heartbeatTask.control = "RUN"
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")
@@ -89,25 +88,6 @@ sub onRefreshTimer()
         requestFetch()
     catch e
         print "onRefreshTimer error: "; e.getMessage()
-    end try
-end sub
-
-' Resets Roku's idle/screensaver countdown by sending a harmless local ECP
-' keypress, the same way a real remote press would. "Left" is used because
-' nothing in this app (or AppScene) handles it -- a true no-op here, unlike
-' "up"/"down" (manual scroll), "options" (reconfigure), or "rewind" (AppScene's
-' easter egg). Fired fire-and-forget: the request is stashed on m. so it isn't
-' garbage collected mid-flight, but the response is never read -- we don't
-' care if it succeeds.
-sub onHeartbeat()
-    try
-        m.heartbeatRequest = CreateObject("roUrlTransfer")
-        m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Left")
-        m.heartbeatPort = CreateObject("roMessagePort")
-        m.heartbeatRequest.SetPort(m.heartbeatPort)
-        m.heartbeatRequest.AsyncPostFromString("")
-    catch e
-        print "onHeartbeat error: "; e.getMessage()
     end try
 end sub
 
