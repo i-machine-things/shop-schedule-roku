@@ -57,6 +57,8 @@ sub init()
     m.scrollY = 0
     m.scrollState = "idle"
     m.SCROLL_SPEED = 1.1
+    m.HEADER_HEIGHT = 56
+    m.ROW_HEIGHT = 60
     m.sectionBounds = []
     m.currentSectionIdx = -1
     m.stickyHeader.visible = false
@@ -159,39 +161,49 @@ end sub
 ' CSS position:sticky section headers instead of an instant swap with no
 ' scroll motion.
 sub buildContent(sections as Object)
-    m.scrollContent.removeChildren(m.scrollContent.getChildren(-1, 0))
-    m.scrollTimer.control = "stop"
-    m.pauseTimer.control = "stop"
-    m.scrollState = "idle"
-    m.sectionBounds = []
-    m.currentSectionIdx = -1
-    m.stickyHeader.visible = false
+    ' Guards the kiosk against ever freezing on an unexpected data shape --
+    ' a crash here previously took the whole render thread down with it,
+    ' leaving the last frame stuck on screen with no timers left running.
+    ' See CODING_NOTES.md "Resilience" for the incident this came from.
+    try
+        m.scrollContent.removeChildren(m.scrollContent.getChildren(-1, 0))
+        m.scrollTimer.control = "stop"
+        m.pauseTimer.control = "stop"
+        m.scrollState = "idle"
+        m.sectionBounds = []
+        m.currentSectionIdx = -1
+        m.stickyHeader.visible = false
 
-    y = 0
-    for each section in sections
-        if section.jobs <> invalid and section.jobs.Count() > 0 then
-            m.sectionBounds.push({ startY: y, section: section })
+        y = 0
+        for each section in sections
+            if section.jobs <> invalid and section.jobs.Count() > 0 then
+                m.sectionBounds.push({ startY: y, section: section })
 
-            headerGroup = buildSectionHeader(section, y)
-            m.scrollContent.appendChild(headerGroup)
-            y = y + 56
+                headerGroup = buildSectionHeader(section, y)
+                m.scrollContent.appendChild(headerGroup)
+                y = y + m.HEADER_HEIGHT
 
-            for each job in section.jobs
-                rowGroup = buildJobRow(job, y)
-                m.scrollContent.appendChild(rowGroup)
-                y = y + 60
-            end for
+                for each job in section.jobs
+                    rowGroup = buildJobRow(job, y)
+                    m.scrollContent.appendChild(rowGroup)
+                    y = y + m.ROW_HEIGHT
+                end for
+            end if
+        end for
+
+        m.contentHeight = y
+        m.scrollY = 0
+        m.scrollContent.translation = [0, 0]
+
+        if m.contentHeight > m.viewportHeight then
+            m.scrollState = "scrolling"
+            m.scrollTimer.control = "start"
         end if
-    end for
-
-    m.contentHeight = y
-    m.scrollY = 0
-    m.scrollContent.translation = [0, 0]
-
-    if m.contentHeight > m.viewportHeight then
-        m.scrollState = "scrolling"
-        m.scrollTimer.control = "start"
-    end if
+    catch e
+        print "buildContent error: "; e.getMessage()
+        m.errorLabel.text = "Display error building schedule -- will retry next refresh."
+        m.errorBanner.visible = true
+    end try
 end sub
 
 function buildSectionHeader(section as Object, y as Integer) as Object
@@ -202,13 +214,13 @@ function buildSectionHeader(section as Object, y as Integer) as Object
 
     bg = CreateObject("roSGNode", "Rectangle")
     bg.width = 1920
-    bg.height = 56
+    bg.height = m.HEADER_HEIGHT
     bg.color = colors.bg
     group.appendChild(bg)
 
     accentBar = CreateObject("roSGNode", "Rectangle")
     accentBar.width = 6
-    accentBar.height = 56
+    accentBar.height = m.HEADER_HEIGHT
     accentBar.color = colors.accent
     group.appendChild(accentBar)
 
@@ -230,18 +242,21 @@ function buildSectionHeader(section as Object, y as Integer) as Object
 end function
 
 ' Overlay is shown only once the real header for the active section has
-' scrolled past the top (scrollY beyond its startY) -- exactly the point
-' clippingRect would otherwise make it disappear. At rest, or while that
-' header is still naturally within the viewport, the overlay stays hidden
-' so the real one is the only copy on screen (avoids a double-header).
-sub updateStickyHeader(idx as Integer, scrollY as Float)
+' FULLY scrolled past the top -- not just reached it. The real header is
+' HEADER_HEIGHT tall, so it's still partially visible (its bottom portion,
+' clipped from the top down) until scrollY passes startY + HEADER_HEIGHT,
+' not just startY. Showing the overlay as soon as scrollY > startY (the
+' original version) created a window where both the real header's visible
+' remainder AND the overlay were on screen simultaneously -- the doubled
+' "PAINTING / PAINTING" overlap seen on real hardware.
+sub updateStickyHeader(idx as Integer, scrollY)
     if idx < 0 or idx >= m.sectionBounds.Count() then
         m.stickyHeader.visible = false
         return
     end if
 
     bounds = m.sectionBounds[idx]
-    if scrollY <= bounds.startY then
+    if scrollY <= bounds.startY + m.HEADER_HEIGHT then
         m.stickyHeader.visible = false
         return
     end if
@@ -274,7 +289,7 @@ function buildJobRow(job as Object, y as Integer) as Object
 
     bg = CreateObject("roSGNode", "Rectangle")
     bg.width = 1920
-    bg.height = 60
+    bg.height = m.ROW_HEIGHT
     bg.color = "0x0A0A14FF"
     group.appendChild(bg)
 
@@ -309,21 +324,33 @@ end sub
 ' repeat. Not a seamless infinite-wrap like the web kiosk's doubled-content
 ' trick -- a visible reset is a reasonable tradeoff for how much simpler it
 ' is to get right in SceneGraph, and still reads fine as "auto-scrolling".
+' This fires ~33x/second for as long as the kiosk is scrolling -- any
+' uncaught error here previously killed the whole render thread (nothing
+' left to fire the clock, refresh timer, or anything else), leaving the
+' last frame frozen on screen permanently. On error: stop the scroll timer
+' (so it doesn't re-throw every tick) and let the next successful refresh's
+' buildContent() restart scrolling cleanly, rather than crash the channel.
 sub onScrollTick()
-    maxScroll = m.contentHeight - m.viewportHeight
-    if maxScroll <= 0 then return
+    try
+        maxScroll = m.contentHeight - m.viewportHeight
+        if maxScroll <= 0 then return
 
-    m.scrollY = m.scrollY + m.SCROLL_SPEED
-    if m.scrollY >= maxScroll then
-        m.scrollY = maxScroll
-        applyScroll()
-        m.scrollState = "pausedAtBottom"
+        m.scrollY = m.scrollY + m.SCROLL_SPEED
+        if m.scrollY >= maxScroll then
+            m.scrollY = maxScroll
+            applyScroll()
+            m.scrollState = "pausedAtBottom"
+            m.scrollTimer.control = "stop"
+            m.pauseTimer.duration = 3
+            m.pauseTimer.control = "start"
+        else
+            applyScroll()
+        end if
+    catch e
+        print "onScrollTick error: "; e.getMessage()
         m.scrollTimer.control = "stop"
-        m.pauseTimer.duration = 3
-        m.pauseTimer.control = "start"
-    else
-        applyScroll()
-    end if
+        m.scrollState = "idle"
+    end try
 end sub
 
 sub applyScroll()
@@ -344,16 +371,21 @@ sub applyScroll()
 end sub
 
 sub onPauseTimerFire()
-    if m.scrollState = "pausedAtBottom" then
-        m.scrollY = 0
-        applyScroll()
-        m.scrollState = "pausedAtTop"
-        m.pauseTimer.duration = 2
-        m.pauseTimer.control = "start"
-    else if m.scrollState = "pausedAtTop" then
-        m.scrollState = "scrolling"
-        m.scrollTimer.control = "start"
-    end if
+    try
+        if m.scrollState = "pausedAtBottom" then
+            m.scrollY = 0
+            applyScroll()
+            m.scrollState = "pausedAtTop"
+            m.pauseTimer.duration = 2
+            m.pauseTimer.control = "start"
+        else if m.scrollState = "pausedAtTop" then
+            m.scrollState = "scrolling"
+            m.scrollTimer.control = "start"
+        end if
+    catch e
+        print "onPauseTimerFire error: "; e.getMessage()
+        m.scrollState = "idle"
+    end try
 end sub
 
 ' Press "options" (the asterisk/star key) to reset the configured server and
