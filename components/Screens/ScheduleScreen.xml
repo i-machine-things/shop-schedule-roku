@@ -9,16 +9,18 @@
     <children>
         <Rectangle width="1920" height="1080" color="0x07070FFF" />
 
-        <!-- App header -->
-        <Rectangle id="header" width="1920" height="70" color="0x0B0B18FF">
-            <Label id="titleLabel" text="SHOP SCHEDULE" translation="[30, 20]" font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
-            <Label id="metaLabel" text="" translation="[1020, 14]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x888888FF" />
-            <Label id="clockLabel" text="" translation="[1020, 36]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x4AAFFFFF" />
+        <!-- App header. metaLabel/clockLabel need real vertical separation --
+             font:SmallSystemFont renders taller than a 22px gap allows; the
+             first version had the clock overlapping the report/thru date line. -->
+        <Rectangle id="header" width="1920" height="92" color="0x0B0B18FF">
+            <Label id="titleLabel" text="SHOP SCHEDULE" translation="[30, 30]" font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
+            <Label id="metaLabel" text="" translation="[1020, 12]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x888888FF" />
+            <Label id="clockLabel" text="" translation="[1020, 50]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x4AAFFFFF" />
         </Rectangle>
 
         <!-- Column labels -- fixed, matches the web kiosk's <thead> row. x offsets
              must stay in sync with m.COLS in ScheduleScreen.brs. -->
-        <Rectangle id="columnHeaderRow" width="1920" height="38" translation="[0, 70]" color="0x0D0D20FF">
+        <Rectangle id="columnHeaderRow" width="1920" height="38" translation="[0, 92]" color="0x0D0D20FF">
             <Label text="JOB"         translation="[40, 10]"   font="font:SmallBoldSystemFont" color="0x7799FFFF" />
             <Label text="CUSTOMER"    translation="[240, 10]"  font="font:SmallBoldSystemFont" color="0x7799FFFF" />
             <Label text="DESCRIPTION" translation="[580, 10]"  font="font:SmallBoldSystemFont" color="0x7799FFFF" />
@@ -29,7 +31,7 @@
         <!-- Sticky work-center header -- stays fixed, shows whichever section is
              currently scrolled to the top; replaced by the next section's info
              once that section reaches the top, matching the web kiosk's behavior. -->
-        <Group id="stickyHeader" translation="[0, 108]">
+        <Group id="stickyHeader" translation="[0, 130]">
             <Rectangle id="stickyHeaderBg" width="1920" height="56" color="0x1A1A1AFF" />
             <Rectangle id="stickyAccent" width="6" height="56" color="0x666666FF" />
             <Label id="stickyWcLabel" text="" translation="[30, 14]" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
@@ -40,7 +42,7 @@
              WC header. clippingRect is required -- without it, scrolled rows
              render on top of/behind the headers above instead of staying
              confined below them. -->
-        <Group id="viewport" translation="[0, 164]" clippingRect="[0, 0, 1920, 916]">
+        <Group id="viewport" translation="[0, 186]" clippingRect="[0, 0, 1920, 894]">
             <Group id="scrollContent" translation="[0, 0]" />
         </Group>
 

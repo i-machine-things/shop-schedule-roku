@@ -52,7 +52,7 @@ sub init()
     m.clockTimer.observeField("fire", "onClockTick")
     m.heartbeatTimer.observeField("fire", "onHeartbeat")
 
-    m.viewportHeight = 1080 - 164
+    m.viewportHeight = 1080 - 186
     m.contentHeight = 0
     m.scrollY = 0
     m.scrollState = "idle"
