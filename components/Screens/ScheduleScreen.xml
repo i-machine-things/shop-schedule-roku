@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="ScheduleScreen" extends="Group">
+    <script type="text/brightscript" uri="pkg:/components/Screens/ScheduleScreen.brs" />
+    <interface>
+        <field id="reconfigure" type="boolean" value="false" />
+        <function name="screenShown" />
+    </interface>
+
+    <children>
+        <Rectangle width="1920" height="1080" color="0x07070FFF" />
+
+        <!-- Header -->
+        <Rectangle id="header" width="1920" height="70" color="0x0B0B18FF">
+            <Label id="titleLabel" text="SHOP SCHEDULE" translation="[30, 20]" font="font:MediumBoldSystemFont" color="0xFFFFFFFF" />
+            <Label id="metaLabel" text="" translation="[1020, 14]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x888888FF" />
+            <Label id="clockLabel" text="" translation="[1020, 36]" horizAlign="right" width="870" font="font:SmallSystemFont" color="0x4AAFFFFF" />
+        </Rectangle>
+
+        <!-- Scroll viewport: everything below the header -->
+        <Group id="viewport" translation="[0, 70]">
+            <Group id="scrollContent" translation="[0, 0]" />
+        </Group>
+
+        <!-- Connection-lost banner -- overlays without wiping the last good schedule -->
+        <Rectangle id="errorBanner" width="1920" height="40" translation="[0, 1040]" color="0x2B0D0DFF" visible="false">
+            <Label id="errorLabel" text="" translation="[30, 8]" font="font:SmallSystemFont" color="0xFF8888FF" />
+        </Rectangle>
+
+        <Label id="loadingLabel" text="Loading schedule..." translation="[760, 520]" font="font:LargeSystemFont" color="0x4AAFFFFF" />
+
+        <ScheduleTask id="scheduleTask" />
+        <Timer id="refreshTimer" repeat="true" duration="60" />
+        <Timer id="scrollTimer" repeat="true" duration="0.03" />
+        <Timer id="pauseTimer" repeat="false" />
+        <Timer id="clockTimer" repeat="true" duration="1" />
+    </children>
+</component>
