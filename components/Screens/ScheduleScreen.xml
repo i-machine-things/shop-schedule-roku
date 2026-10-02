@@ -28,9 +28,11 @@
             <Label text="CURR WC"     translation="[1620, 10]" font="font:SmallBoldSystemFont" color="0x7799FFFF" />
         </Rectangle>
 
-        <!-- Sticky work-center header -- stays fixed, shows whichever section is
-             currently scrolled to the top; replaced by the next section's info
-             once that section reaches the top, matching the web kiosk's behavior. -->
+        <!-- Sticky work-center header -- always visible, always shows whichever
+             section's rows currently occupy the top of the viewport. Kept
+             deliberately simple (no visibility toggling based on scroll
+             position) after two real-hardware bugs from timing-based show/hide
+             logic -- see CODING_NOTES.md "Sticky header v2". -->
         <Group id="stickyHeader" translation="[0, 130]">
             <Rectangle id="stickyHeaderBg" width="1920" height="56" color="0x1A1A1AFF" />
             <Rectangle id="stickyAccent" width="6" height="56" color="0x666666FF" />
@@ -58,6 +60,8 @@
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
         <Timer id="clockTimer" repeat="true" duration="1" />
+        <!-- Resumes auto-scroll this long after the last manual Up/Down press -->
+        <Timer id="manualPauseTimer" repeat="false" duration="10" />
         <!-- Resets Roku's idle/screensaver timer -- see onHeartbeat() in the .brs -->
         <Timer id="heartbeatTimer" repeat="true" duration="90" />
     </children>

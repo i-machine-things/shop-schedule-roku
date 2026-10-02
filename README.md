@@ -17,6 +17,7 @@ Roku's public SDK has no web-view/embedded-browser component, so this channel ca
 * **Sticky work-center headers** — stays fixed at the top while its jobs scroll past, swapped for the next section's header exactly when it reaches the top (like the web kiosk's `position:sticky` section headers).
 * **Resilient to network blips** — a failed poll shows a small warning banner without blanking the last good schedule.
 * **Stays awake unattended** — periodically resets Roku's own idle/screensaver timer, since an auto-scrolling kiosk with no remote input would otherwise still go idle like any other channel.
+* **Manual scroll** — Up/Down on the remote scrolls directly; auto-scroll resumes automatically a few seconds after the last press.
 * **One-time setup** — enter the server address once; it's remembered in the Roku's registry.
 
 ---

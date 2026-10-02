@@ -44,6 +44,7 @@ sub init()
     m.pauseTimer = m.top.findNode("pauseTimer")
     m.clockTimer = m.top.findNode("clockTimer")
     m.heartbeatTimer = m.top.findNode("heartbeatTimer")
+    m.manualPauseTimer = m.top.findNode("manualPauseTimer")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -51,6 +52,7 @@ sub init()
     m.pauseTimer.observeField("fire", "onPauseTimerFire")
     m.clockTimer.observeField("fire", "onClockTick")
     m.heartbeatTimer.observeField("fire", "onHeartbeat")
+    m.manualPauseTimer.observeField("fire", "onManualPauseTimerFire")
 
     m.viewportHeight = 1080 - 186
     m.contentHeight = 0
@@ -87,14 +89,15 @@ sub onRefreshTimer()
 end sub
 
 ' Resets Roku's idle/screensaver countdown by sending a harmless local ECP
-' keypress, the same way a real remote press would. "Up" is used because
-' nothing in this app (or AppScene) handles it -- it's a true no-op here,
-' unlike "options" (reconfigure) or "rewind" (AppScene's easter egg). Fired
-' fire-and-forget: the request is stashed on m. so it isn't garbage collected
-' mid-flight, but the response is never read -- we don't care if it succeeds.
+' keypress, the same way a real remote press would. "Left" is used because
+' nothing in this app (or AppScene) handles it -- a true no-op here, unlike
+' "up"/"down" (manual scroll), "options" (reconfigure), or "rewind" (AppScene's
+' easter egg). Fired fire-and-forget: the request is stashed on m. so it isn't
+' garbage collected mid-flight, but the response is never read -- we don't
+' care if it succeeds.
 sub onHeartbeat()
     m.heartbeatRequest = CreateObject("roUrlTransfer")
-    m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Up")
+    m.heartbeatRequest.SetUrl("http://localhost:8060/keypress/Left")
     m.heartbeatPort = CreateObject("roMessagePort")
     m.heartbeatRequest.SetPort(m.heartbeatPort)
     m.heartbeatRequest.AsyncPostFromString("")
@@ -152,27 +155,29 @@ sub onScheduleData()
     buildContent(data.sections)
 end sub
 
-' Each section's header bar is rendered inline, at its real scrolled position,
-' identical in appearance to the fixed stickyHeader overlay above the
-' viewport. It scrolls normally with its rows -- the overlay only becomes
-' visible once that real header has scrolled up past the viewport's top edge
-' (where clippingRect would otherwise just make it vanish), taking over to
-' look like it "stuck" there. This is what makes it match the web kiosk's
-' CSS position:sticky section headers instead of an instant swap with no
-' scroll motion.
+' Each section's header bar is rendered inline, at its real scrolled position.
+' The real content with real-world data runs to hundreds of jobs -- a full
+' scroll-through at this speed takes several minutes, far longer than the
+' 60s refresh interval. Resetting scrollY to 0 on every refresh (the first
+' version) meant the display could never get more than a minute into the
+' list before being yanked back to the top -- confirmed on real hardware as
+' "restarts instead of showing the whole list." Fix: preserve scroll
+' position across a refresh; only reset to 0 on the very first load.
 sub buildContent(sections as Object)
     ' Guards the kiosk against ever freezing on an unexpected data shape --
     ' a crash here previously took the whole render thread down with it,
     ' leaving the last frame stuck on screen with no timers left running.
     ' See CODING_NOTES.md "Resilience" for the incident this came from.
     try
+        previousScrollY = m.scrollY
+        wasManuallyPaused = (m.scrollState = "manualPaused")
+
         m.scrollContent.removeChildren(m.scrollContent.getChildren(-1, 0))
         m.scrollTimer.control = "stop"
         m.pauseTimer.control = "stop"
         m.scrollState = "idle"
         m.sectionBounds = []
         m.currentSectionIdx = -1
-        m.stickyHeader.visible = false
 
         y = 0
         for each section in sections
@@ -192,12 +197,24 @@ sub buildContent(sections as Object)
         end for
 
         m.contentHeight = y
-        m.scrollY = 0
-        m.scrollContent.translation = [0, 0]
+        maxScroll = m.contentHeight - m.viewportHeight
 
-        if m.contentHeight > m.viewportHeight then
-            m.scrollState = "scrolling"
-            m.scrollTimer.control = "start"
+        if maxScroll > 0 then
+            m.scrollY = previousScrollY
+            if m.scrollY > maxScroll then m.scrollY = maxScroll
+            if m.scrollY < 0 then m.scrollY = 0
+            applyScroll()
+            if wasManuallyPaused then
+                m.scrollState = "manualPaused"
+                m.manualPauseTimer.control = "start"
+            else
+                m.scrollState = "scrolling"
+                m.scrollTimer.control = "start"
+            end if
+        else
+            m.scrollY = 0
+            m.scrollContent.translation = [0, 0]
+            updateStickyHeader(0)
         end if
     catch e
         print "buildContent error: "; e.getMessage()
@@ -241,32 +258,24 @@ function buildSectionHeader(section as Object, y as Integer) as Object
     return group
 end function
 
-' Overlay is shown only once the real header for the active section has
-' FULLY scrolled past the top -- not just reached it. The real header is
-' HEADER_HEIGHT tall, so it's still partially visible (its bottom portion,
-' clipped from the top down) until scrollY passes startY + HEADER_HEIGHT,
-' not just startY. Showing the overlay as soon as scrollY > startY (the
-' original version) created a window where both the real header's visible
-' remainder AND the overlay were on screen simultaneously -- the doubled
-' "PAINTING / PAINTING" overlap seen on real hardware.
-sub updateStickyHeader(idx as Integer, scrollY)
-    if idx < 0 or idx >= m.sectionBounds.Count() then
-        m.stickyHeader.visible = false
-        return
-    end if
-
-    bounds = m.sectionBounds[idx]
-    if scrollY <= bounds.startY + m.HEADER_HEIGHT then
-        m.stickyHeader.visible = false
-        return
-    end if
-
-    m.stickyHeader.visible = true
+' Always visible once there's at least one section -- deliberately simple.
+' Two earlier versions tried to time the overlay's visibility against exactly
+' when the real inline header should be clipped away (hidden until scrollY
+' passed startY, then hidden until startY+HEADER_HEIGHT) and each attempt
+' produced a real, hardware-confirmed bug: a doubled/overlapping header, then
+' a "blacks out" gap during the handoff. Always-on, idx-driven only, costs a
+' brief harmless moment of the overlay and the real header both showing the
+' *same* matching text during each transition -- far less objectionable than
+' either previous failure mode, and there's no timing window left to get
+' wrong. See CODING_NOTES.md "Sticky header v2".
+sub updateStickyHeader(idx as Integer)
+    if idx < 0 or idx >= m.sectionBounds.Count() then return
     if idx = m.currentSectionIdx then return
     m.currentSectionIdx = idx
 
-    section = bounds.section
+    section = m.sectionBounds[idx].section
     colors = colorsForDept(section.department)
+    m.stickyHeader.visible = true
     m.stickyHeaderBg.color = colors.bg
     m.stickyAccent.color = colors.accent
     m.stickyWcLabel.text = section.wc
@@ -367,7 +376,7 @@ sub applyScroll()
             exit for
         end if
     end for
-    updateStickyHeader(idx, m.scrollY)
+    updateStickyHeader(idx)
 end sub
 
 sub onPauseTimerFire()
@@ -391,10 +400,44 @@ end sub
 ' Press "options" (the asterisk/star key) to reset the configured server and
 ' return to setup. Deliberately not a commonly-pressed key -- this runs
 ' unattended on a shop floor TV and shouldn't be easy to trigger by accident.
+' Up/Down scroll manually; auto-scroll pauses while in manual control and
+' resumes a few seconds after the last press, same idea as the web kiosk
+' pausing on wheel/touch input.
 function onKeyEvent(key as String, press as Boolean) as Boolean
-    if press and key = "options" then
+    if not press then return false
+
+    if key = "options" then
         m.top.reconfigure = true
+        return true
+    else if key = "up" then
+        manualScroll(-200)
+        return true
+    else if key = "down" then
+        manualScroll(200)
         return true
     end if
     return false
 end function
+
+sub manualScroll(delta as Integer)
+    maxScroll = m.contentHeight - m.viewportHeight
+    if maxScroll <= 0 then return
+
+    m.scrollTimer.control = "stop"
+    m.pauseTimer.control = "stop"
+    m.scrollState = "manualPaused"
+
+    m.scrollY = m.scrollY + delta
+    if m.scrollY < 0 then m.scrollY = 0
+    if m.scrollY > maxScroll then m.scrollY = maxScroll
+    applyScroll()
+
+    m.manualPauseTimer.control = "stop"
+    m.manualPauseTimer.control = "start"
+end sub
+
+sub onManualPauseTimerFire()
+    if m.scrollState <> "manualPaused" then return
+    m.scrollState = "scrolling"
+    m.scrollTimer.control = "start"
+end sub
