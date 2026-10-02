@@ -59,6 +59,7 @@ sub init()
     m.SCROLL_SPEED = 1.1
     m.sectionBounds = []
     m.currentSectionIdx = -1
+    m.stickyHeader.visible = false
 end sub
 
 sub screenShown()
@@ -149,9 +150,14 @@ sub onScheduleData()
     buildContent(data.sections)
 end sub
 
-' Rows are built directly from job data -- no inline section header rows.
-' The sticky header above the viewport is the only visible WC header; a thin
-' accent-colored divider marks where each new section's rows begin.
+' Each section's header bar is rendered inline, at its real scrolled position,
+' identical in appearance to the fixed stickyHeader overlay above the
+' viewport. It scrolls normally with its rows -- the overlay only becomes
+' visible once that real header has scrolled up past the viewport's top edge
+' (where clippingRect would otherwise just make it vanish), taking over to
+' look like it "stuck" there. This is what makes it match the web kiosk's
+' CSS position:sticky section headers instead of an instant swap with no
+' scroll motion.
 sub buildContent(sections as Object)
     m.scrollContent.removeChildren(m.scrollContent.getChildren(-1, 0))
     m.scrollTimer.control = "stop"
@@ -159,22 +165,16 @@ sub buildContent(sections as Object)
     m.scrollState = "idle"
     m.sectionBounds = []
     m.currentSectionIdx = -1
+    m.stickyHeader.visible = false
 
     y = 0
     for each section in sections
         if section.jobs <> invalid and section.jobs.Count() > 0 then
             m.sectionBounds.push({ startY: y, section: section })
 
-            if m.sectionBounds.Count() > 1 then
-                divider = CreateObject("roSGNode", "Rectangle")
-                divider.width = 1920
-                divider.height = 4
-                divider.color = colorsForDept(section.department).accent
-                divider.translation = [0, y]
-                m.scrollContent.appendChild(divider)
-                y = y + 4
-                m.sectionBounds[m.sectionBounds.Count() - 1].startY = y
-            end if
+            headerGroup = buildSectionHeader(section, y)
+            m.scrollContent.appendChild(headerGroup)
+            y = y + 56
 
             for each job in section.jobs
                 rowGroup = buildJobRow(job, y)
@@ -188,22 +188,69 @@ sub buildContent(sections as Object)
     m.scrollY = 0
     m.scrollContent.translation = [0, 0]
 
-    if m.sectionBounds.Count() > 0 then
-        updateStickyHeader(0)
-    end if
-
     if m.contentHeight > m.viewportHeight then
         m.scrollState = "scrolling"
         m.scrollTimer.control = "start"
     end if
 end sub
 
-sub updateStickyHeader(idx as Integer)
+function buildSectionHeader(section as Object, y as Integer) as Object
+    colors = colorsForDept(section.department)
+
+    group = CreateObject("roSGNode", "Group")
+    group.translation = [0, y]
+
+    bg = CreateObject("roSGNode", "Rectangle")
+    bg.width = 1920
+    bg.height = 56
+    bg.color = colors.bg
+    group.appendChild(bg)
+
+    accentBar = CreateObject("roSGNode", "Rectangle")
+    accentBar.width = 6
+    accentBar.height = 56
+    accentBar.color = colors.accent
+    group.appendChild(accentBar)
+
+    wcLabel = CreateObject("roSGNode", "Label")
+    wcLabel.text = section.wc
+    wcLabel.translation = [30, 14]
+    wcLabel.font = "font:LargeBoldSystemFont"
+    wcLabel.color = "0xFFFFFFFF"
+    group.appendChild(wcLabel)
+
+    deptLabel = CreateObject("roSGNode", "Label")
+    deptLabel.text = section.department + "   -   " + section.wc_group
+    deptLabel.translation = [360, 20]
+    deptLabel.font = "font:SmallSystemFont"
+    deptLabel.color = "0x999999FF"
+    group.appendChild(deptLabel)
+
+    return group
+end function
+
+' Overlay is shown only once the real header for the active section has
+' scrolled past the top (scrollY beyond its startY) -- exactly the point
+' clippingRect would otherwise make it disappear. At rest, or while that
+' header is still naturally within the viewport, the overlay stays hidden
+' so the real one is the only copy on screen (avoids a double-header).
+sub updateStickyHeader(idx as Integer, scrollY as Float)
+    if idx < 0 or idx >= m.sectionBounds.Count() then
+        m.stickyHeader.visible = false
+        return
+    end if
+
+    bounds = m.sectionBounds[idx]
+    if scrollY <= bounds.startY then
+        m.stickyHeader.visible = false
+        return
+    end if
+
+    m.stickyHeader.visible = true
     if idx = m.currentSectionIdx then return
-    if idx < 0 or idx >= m.sectionBounds.Count() then return
     m.currentSectionIdx = idx
 
-    section = m.sectionBounds[idx].section
+    section = bounds.section
     colors = colorsForDept(section.department)
     m.stickyHeaderBg.color = colors.bg
     m.stickyAccent.color = colors.accent
@@ -293,7 +340,7 @@ sub applyScroll()
             exit for
         end if
     end for
-    updateStickyHeader(idx)
+    updateStickyHeader(idx, m.scrollY)
 end sub
 
 sub onPauseTimerFire()
