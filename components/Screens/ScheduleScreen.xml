@@ -79,10 +79,11 @@
              pipeline allocated -- but that attempt used the same broken
              16x16/5fps clip that was separately proven to stall in
              "buffering" even on-canvas, so the real cause was confounded.
-             Retrying off-canvas now that the clip itself is fixed; confirm
-             via telnet that state still reaches "playing" before trusting
-             this. Real video node, not a Task -- video playback isn't
-             subject to the MAIN|TASK-thread restriction roUrlTransfer has. -->
+             CONFIRMED via telnet with the fixed clip: off-canvas still goes
+             none -> buffering -> playing normally -- the old "no decode
+             pipeline off-canvas" theory was wrong; it was the clip all along.
+             Real video node, not a Task -- video playback isn't subject to
+             the MAIN|TASK-thread restriction roUrlTransfer has. -->
         <Video id="ghostVideo" width="80" height="80" translation="[-300, -300]" enableScreenSaverWhilePlaying="false" EnableUI="false" loop="true" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
