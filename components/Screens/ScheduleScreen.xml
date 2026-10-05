@@ -60,21 +60,20 @@
              defaults to false, which should block Roku's screensaver while ANY
              video is playing, regardless of size (an ECP-keypress "heartbeat"
              was tried first and confirmed NOT to work on real hardware -- see
-             CODING_NOTES.md). STILL UNDER TEST: the streamFormat fix got it
-             further (state went none -> buffering, confirmed via telnet) but
-             it then got stuck in "buffering" forever and never reached
-             "playing" -- real decoder stall, not a culling/format-detection
-             issue. Root cause found: media/ghost.mp4 was 16x16px at 5fps,
-             which is plausibly below what Roku's hardware decoder is
-             validated for even though desktop players handle it fine.
-             Re-encoded at 128x128/24fps/H.264 Constrained Baseline with
-             -movflags +faststart -- confirm via telnet before trusting this.
-             Render size/opacity here (80x80, 0.15) are still from the
-             size-testing round and should shrink back down once playback is
-             actually confirmed working. Real video node, not a Task -- video
-             playback isn't subject to the MAIN|TASK-thread restriction
-             roUrlTransfer has. -->
-        <Video id="ghostVideo" width="80" height="80" translation="[0, 0]" opacity="0.15" loop="true" enableScreenSaverWhilePlaying="false" />
+             CODING_NOTES.md). CONFIRMED via telnet on real hardware: state now
+             goes none -> buffering -> playing and stays playing (previously
+             stuck in "buffering" forever -- root cause was media/ghost.mp4
+             being 16x16px at 5fps, below what the hardware decoder validates
+             for; re-encoded at 128x128/24fps/H.264 Constrained Baseline with
+             -movflags +faststart). translation moved from [0, 0] to clear the
+             header's empty gap (x=360-1000, see the logo-badge TODO below) --
+             at [0, 0] it sat directly under titleLabel's "SHOP SCHEDULE" text
+             and visibly covered the first few characters. Render size/opacity
+             (80x80, 0.15) are still from the size-testing round and should
+             shrink back down now that playback is confirmed. Real video node,
+             not a Task -- video playback isn't subject to the MAIN|TASK-thread
+             restriction roUrlTransfer has. -->
+        <Video id="ghostVideo" width="80" height="80" translation="[460, 6]" opacity="0.15" loop="true" enableScreenSaverWhilePlaying="false" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
