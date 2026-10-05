@@ -57,19 +57,29 @@
 
         <ScheduleTask id="scheduleTask" />
         <!-- "Ghost video" screensaver prevention: Video.enableScreenSaverWhilePlaying
-             defaults to false, which blocks Roku's screensaver while ANY video is
-             playing, regardless of size. This plays a tiny bundled black clip,
-             invisible off-screen, purely to keep that flag satisfied -- confirmed
-             the only approach that actually works (an ECP-keypress "heartbeat" was
-             tried first and confirmed NOT to work on real hardware; see
-             CODING_NOTES.md). Real video node, not a Task -- Video playback isn't
-             subject to the MAIN|TASK-thread restriction roUrlTransfer has. -->
-        <Video id="ghostVideo" width="2" height="2" translation="[-100, -100]" loop="true" enableScreenSaverWhilePlaying="false" />
+             defaults to false, which should block Roku's screensaver while ANY
+             video is playing, regardless of size (an ECP-keypress "heartbeat"
+             was tried first and confirmed NOT to work on real hardware -- see
+             CODING_NOTES.md). STILL UNDER TEST on real hardware as of the
+             diagnostic build: an earlier fully off-canvas placement
+             (translation="[-100,-100]") produced zero state-change events ever,
+             suggesting Roku may not allocate a decode pipeline to a video node
+             entirely outside the visible canvas. Moved on-canvas (top-left
+             corner, behind the opaque header) with opacity near zero as a
+             belt-and-suspenders fix -- confirm via telnet before trusting this.
+             Real video node, not a Task -- Video playback isn't subject to the
+             MAIN|TASK-thread restriction roUrlTransfer has. -->
+        <Video id="ghostVideo" width="2" height="2" translation="[0, 0]" opacity="0.02" loop="true" enableScreenSaverWhilePlaying="false" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
         <Timer id="clockTimer" repeat="true" duration="1" />
         <!-- Resumes auto-scroll this long after the last manual Up/Down press -->
         <Timer id="manualPauseTimer" repeat="false" duration="10" />
+        <!-- Temporary diagnostic -- unconditional poll, since if ghostVideo's
+             state field never changes at all, the "state" field observer alone
+             never fires even once, telling us nothing. Remove with the rest of
+             the ghost video diagnostics once the real fix is confirmed. -->
+        <Timer id="ghostPollTimer" repeat="true" duration="15" />
     </children>
 </component>

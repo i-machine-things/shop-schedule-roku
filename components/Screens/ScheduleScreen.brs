@@ -46,6 +46,8 @@ sub init()
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
     m.ghostVideo = m.top.findNode("ghostVideo")
     m.ghostVideo.observeField("state", "onGhostVideoState")
+    m.ghostPollTimer = m.top.findNode("ghostPollTimer")
+    m.ghostPollTimer.observeField("fire", "onGhostPollTick")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -71,6 +73,7 @@ sub screenShown()
     updateClock()
     m.clockTimer.control = "start"
     startGhostVideo()
+    m.ghostPollTimer.control = "start"
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")
@@ -94,7 +97,7 @@ end sub
 ' Remove once the root cause is confirmed and fixed.
 sub onGhostVideoState()
     st = m.ghostVideo.state
-    print "[GHOST] state="; st
+    print "[GHOST] state changed to "; st
     if st = "error" then
         print "[GHOST] errorCode="; m.ghostVideo.errorCode; " errorMsg="; m.ghostVideo.errorMsg
     end if
@@ -102,6 +105,14 @@ sub onGhostVideoState()
         print "[GHOST] not playing -- restarting"
         startGhostVideo()
     end if
+end sub
+
+' Temporary diagnostic -- unconditional poll. If "state" never actually
+' changes (e.g. stuck at "none" because the node never starts decoding),
+' the observer above never fires even once and tells us nothing -- this
+' prints the current value on a timer regardless of whether it changed.
+sub onGhostPollTick()
+    print "[GHOST] poll state="; m.ghostVideo.state
 end sub
 
 sub requestFetch()
