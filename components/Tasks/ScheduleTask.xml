@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="ScheduleTask" extends="Task">
+    <script type="text/brightscript" uri="pkg:/components/Tasks/ScheduleTask.brs" />
+    <interface>
+        <field id="serverUrl" type="string" />
+        <!-- Parsed {report_date, thru_date, sections} on success, invalid on failure -->
+        <field id="scheduleData" type="assocarray" />
+        <!-- Set only when scheduleData is invalid -->
+        <field id="errorMessage" type="string" value="" />
+    </interface>
+</component>
