@@ -46,8 +46,6 @@ sub init()
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
     m.ghostVideo = m.top.findNode("ghostVideo")
     m.ghostVideo.observeField("state", "onGhostVideoState")
-    m.ghostPollTimer = m.top.findNode("ghostPollTimer")
-    m.ghostPollTimer.observeField("fire", "onGhostPollTick")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -73,7 +71,6 @@ sub screenShown()
     updateClock()
     m.clockTimer.control = "start"
     startGhostVideo()
-    m.ghostPollTimer.control = "start"
 
     sec = CreateObject("roRegistrySection", "ScheduleConfig")
     m.serverUrl = sec.Read("serverUrl")
@@ -91,30 +88,20 @@ sub startGhostVideo()
     content.streamFormat = "mp4"
     m.ghostVideo.content = content
     m.ghostVideo.control = "play"
-    print "[GHOST] startGhostVideo: content.url="; m.ghostVideo.content.url; " control="; m.ghostVideo.control; " state="; m.ghostVideo.state
 end sub
 
-' Temporary diagnostic -- logs every ghostVideo state transition to the debug
-' console so a live telnet session can show why the screensaver still fires.
-' Remove once the root cause is confirmed and fixed.
+' Safety net -- restarts ghostVideo if it ever stops or errors out instead of
+' looping forever on its own (loop="true" normally handles looping natively;
+' this only fires on a genuine stop/error). See the ghostVideo XML comment
+' for how this was diagnosed and confirmed fixed via telnet.
 sub onGhostVideoState()
     st = m.ghostVideo.state
-    print "[GHOST] state changed to "; st
     if st = "error" then
         print "[GHOST] errorCode="; m.ghostVideo.errorCode; " errorMsg="; m.ghostVideo.errorMsg
     end if
     if st = "finished" or st = "stopped" then
-        print "[GHOST] not playing -- restarting"
         startGhostVideo()
     end if
-end sub
-
-' Temporary diagnostic -- unconditional poll. If "state" never actually
-' changes (e.g. stuck at "none" because the node never starts decoding),
-' the observer above never fires even once and tells us nothing -- this
-' prints the current value on a timer regardless of whether it changed.
-sub onGhostPollTick()
-    print "[GHOST] poll state="; m.ghostVideo.state
 end sub
 
 sub requestFetch()

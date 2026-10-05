@@ -91,10 +91,5 @@
         <Timer id="clockTimer" repeat="true" duration="1" />
         <!-- Resumes auto-scroll this long after the last manual Up/Down press -->
         <Timer id="manualPauseTimer" repeat="false" duration="10" />
-        <!-- Temporary diagnostic -- unconditional poll, since if ghostVideo's
-             state field never changes at all, the "state" field observer alone
-             never fires even once, telling us nothing. Remove with the rest of
-             the ghost video diagnostics once the real fix is confirmed. -->
-        <Timer id="ghostPollTimer" repeat="true" duration="15" />
     </children>
 </component>
