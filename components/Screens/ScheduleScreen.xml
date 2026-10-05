@@ -57,31 +57,33 @@
 
         <ScheduleTask id="scheduleTask" />
         <!-- "Ghost video" screensaver prevention: Video.enableScreenSaverWhilePlaying
-             defaults to false, which should block Roku's screensaver while ANY
-             video is playing, regardless of size (an ECP-keypress "heartbeat"
+             defaults to false, which blocks Roku's screensaver while ANY video is
+             playing, regardless of size or visibility (an ECP-keypress "heartbeat"
              was tried first and confirmed NOT to work on real hardware -- see
-             CODING_NOTES.md). CONFIRMED via telnet on real hardware: state now
-             goes none -> buffering -> playing and stays playing (previously
-             stuck in "buffering" forever -- root cause was media/ghost.mp4
-             being 16x16px at 5fps, below what the hardware decoder validates
-             for; re-encoded at 128x128/24fps/H.264 Constrained Baseline with
-             -movflags +faststart). translation moved from [0, 0] (sat under
-             titleLabel's "SHOP SCHEDULE" text) to the header's empty gap
-             (x=360-1000, see the logo-badge TODO below). `opacity` does NOT
-             blend a Video node's decoded frame on real hardware -- confirmed
-             by extracting ghost.mp4's actual frames (solid black, no visible
-             artifact in the file) while the clip still rendered as a hard-
-             edged, fully-opaque square on screen at opacity="0.15". Video
-             playback uses a separate hardware overlay plane that the normal
-             2D compositor's opacity doesn't reach. Fixed by baking the
-             header's own background color (0x0B0B18) into the clip's pixels
-             instead of relying on opacity to fade black toward it, and
-             EnableUI="false" to suppress Video's own default playback chrome
-             (trick-play/buffering bar), which was rendering as a thin line
-             across the bottom of the square. Real video node, not a Task --
-             video playback isn't subject to the MAIN|TASK-thread restriction
-             roUrlTransfer has. -->
-        <Video id="ghostVideo" width="80" height="80" translation="[460, 6]" enableScreenSaverWhilePlaying="false" EnableUI="false" loop="true" />
+             CODING_NOTES.md). CONFIRMED via telnet on real hardware: state goes
+             none -> buffering -> playing and stays playing (previously stuck in
+             "buffering" forever -- root cause was media/ghost.mp4 being 16x16px
+             at 5fps, below what the hardware decoder validates for; re-encoded
+             at 128x128/24fps/H.264 Constrained Baseline with -movflags
+             +faststart). Back off-canvas (translation far outside 1920x1080)
+             after two on-canvas problems that off-canvas sidesteps entirely:
+             `opacity` does not blend a Video node's decoded frame on real
+             hardware (confirmed by extracting ghost.mp4's frames -- solid
+             color, nothing baked in -- while it still rendered as a hard-
+             edged, fully-opaque square), and Video's own default playback
+             chrome (EnableUI, trick-play/buffering bar) and loop-restart both
+             produced visible flashing even with the frame color matched to
+             the header background. An EARLIER off-canvas attempt
+             (translation="[-100,-100]") produced zero state-change events and
+             was blamed on off-canvas placement never getting a decode
+             pipeline allocated -- but that attempt used the same broken
+             16x16/5fps clip that was separately proven to stall in
+             "buffering" even on-canvas, so the real cause was confounded.
+             Retrying off-canvas now that the clip itself is fixed; confirm
+             via telnet that state still reaches "playing" before trusting
+             this. Real video node, not a Task -- video playback isn't
+             subject to the MAIN|TASK-thread restriction roUrlTransfer has. -->
+        <Video id="ghostVideo" width="80" height="80" translation="[-300, -300]" enableScreenSaverWhilePlaying="false" EnableUI="false" loop="true" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
