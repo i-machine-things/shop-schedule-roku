@@ -65,15 +65,23 @@
              stuck in "buffering" forever -- root cause was media/ghost.mp4
              being 16x16px at 5fps, below what the hardware decoder validates
              for; re-encoded at 128x128/24fps/H.264 Constrained Baseline with
-             -movflags +faststart). translation moved from [0, 0] to clear the
-             header's empty gap (x=360-1000, see the logo-badge TODO below) --
-             at [0, 0] it sat directly under titleLabel's "SHOP SCHEDULE" text
-             and visibly covered the first few characters. Render size/opacity
-             (80x80, 0.15) are still from the size-testing round and should
-             shrink back down now that playback is confirmed. Real video node,
-             not a Task -- video playback isn't subject to the MAIN|TASK-thread
-             restriction roUrlTransfer has. -->
-        <Video id="ghostVideo" width="80" height="80" translation="[460, 6]" opacity="0.15" loop="true" enableScreenSaverWhilePlaying="false" />
+             -movflags +faststart). translation moved from [0, 0] (sat under
+             titleLabel's "SHOP SCHEDULE" text) to the header's empty gap
+             (x=360-1000, see the logo-badge TODO below). `opacity` does NOT
+             blend a Video node's decoded frame on real hardware -- confirmed
+             by extracting ghost.mp4's actual frames (solid black, no visible
+             artifact in the file) while the clip still rendered as a hard-
+             edged, fully-opaque square on screen at opacity="0.15". Video
+             playback uses a separate hardware overlay plane that the normal
+             2D compositor's opacity doesn't reach. Fixed by baking the
+             header's own background color (0x0B0B18) into the clip's pixels
+             instead of relying on opacity to fade black toward it, and
+             EnableUI="false" to suppress Video's own default playback chrome
+             (trick-play/buffering bar), which was rendering as a thin line
+             across the bottom of the square. Real video node, not a Task --
+             video playback isn't subject to the MAIN|TASK-thread restriction
+             roUrlTransfer has. -->
+        <Video id="ghostVideo" width="80" height="80" translation="[460, 6]" enableScreenSaverWhilePlaying="false" EnableUI="false" loop="true" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
