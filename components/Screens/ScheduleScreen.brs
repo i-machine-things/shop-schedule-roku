@@ -88,8 +88,10 @@ end sub
 sub startGhostVideo()
     content = CreateObject("roSGNode", "ContentNode")
     content.url = "pkg:/media/ghost.mp4"
+    content.streamFormat = "mp4"
     m.ghostVideo.content = content
     m.ghostVideo.control = "play"
+    print "[GHOST] startGhostVideo: content.url="; m.ghostVideo.content.url; " control="; m.ghostVideo.control; " state="; m.ghostVideo.state
 end sub
 
 ' Temporary diagnostic -- logs every ghostVideo state transition to the debug

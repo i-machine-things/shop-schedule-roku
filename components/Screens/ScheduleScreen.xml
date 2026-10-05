@@ -60,16 +60,20 @@
              defaults to false, which should block Roku's screensaver while ANY
              video is playing, regardless of size (an ECP-keypress "heartbeat"
              was tried first and confirmed NOT to work on real hardware -- see
-             CODING_NOTES.md). STILL UNDER TEST on real hardware as of the
-             diagnostic build: an earlier fully off-canvas placement
-             (translation="[-100,-100]") produced zero state-change events ever,
-             suggesting Roku may not allocate a decode pipeline to a video node
-             entirely outside the visible canvas. Moved on-canvas (top-left
-             corner, behind the opaque header) with opacity near zero as a
-             belt-and-suspenders fix -- confirm via telnet before trusting this.
+             CODING_NOTES.md). STILL UNDER TEST on real hardware: moving it
+             on-canvas (prior diagnostic build) did NOT help -- state stayed
+             "none" forever even on-canvas, meaning it never even attempted to
+             buffer, so off-canvas culling wasn't the (sole) cause. This round
+             tests two more things at once: an explicit streamFormat="mp4" on
+             the ContentNode (in ScheduleScreen.brs -- Roku's local-file format
+             auto-detection is "usually" but not always reliable), and a much
+             larger size (80x80 instead of 2x2) in case very-tiny video nodes
+             are silently refused a decode pipeline. Opacity raised to stay
+             visible enough to check directly on-screen if needed (TODO: shrink
+             back down / drop opacity once something is confirmed working).
              Real video node, not a Task -- Video playback isn't subject to the
              MAIN|TASK-thread restriction roUrlTransfer has. -->
-        <Video id="ghostVideo" width="2" height="2" translation="[0, 0]" opacity="0.02" loop="true" enableScreenSaverWhilePlaying="false" />
+        <Video id="ghostVideo" width="80" height="80" translation="[0, 0]" opacity="0.15" loop="true" enableScreenSaverWhilePlaying="false" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
