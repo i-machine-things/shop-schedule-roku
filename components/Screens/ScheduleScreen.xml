@@ -64,7 +64,10 @@
              tried first and confirmed NOT to work on real hardware; see
              CODING_NOTES.md). Real video node, not a Task -- Video playback isn't
              subject to the MAIN|TASK-thread restriction roUrlTransfer has. -->
-        <Video id="ghostVideo" width="2" height="2" translation="[-100, -100]" loop="true" enableScreenSaverWhilePlaying="false" />
+        <!-- disableScreenSaver="true" is the unconditional suppress flag (docs: "Set this to true
+             to suppress the screensaver"). Set alongside enableScreenSaverWhilePlaying so the
+             screensaver stays blocked even if the clip is not reported as playing. -->
+        <Video id="ghostVideo" width="2" height="2" translation="[-100, -100]" loop="true" enableScreenSaverWhilePlaying="false" disableScreenSaver="true" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
         <Timer id="pauseTimer" repeat="false" />
