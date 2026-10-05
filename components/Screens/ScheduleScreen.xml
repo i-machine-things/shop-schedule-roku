@@ -60,19 +60,20 @@
              defaults to false, which should block Roku's screensaver while ANY
              video is playing, regardless of size (an ECP-keypress "heartbeat"
              was tried first and confirmed NOT to work on real hardware -- see
-             CODING_NOTES.md). STILL UNDER TEST on real hardware: moving it
-             on-canvas (prior diagnostic build) did NOT help -- state stayed
-             "none" forever even on-canvas, meaning it never even attempted to
-             buffer, so off-canvas culling wasn't the (sole) cause. This round
-             tests two more things at once: an explicit streamFormat="mp4" on
-             the ContentNode (in ScheduleScreen.brs -- Roku's local-file format
-             auto-detection is "usually" but not always reliable), and a much
-             larger size (80x80 instead of 2x2) in case very-tiny video nodes
-             are silently refused a decode pipeline. Opacity raised to stay
-             visible enough to check directly on-screen if needed (TODO: shrink
-             back down / drop opacity once something is confirmed working).
-             Real video node, not a Task -- Video playback isn't subject to the
-             MAIN|TASK-thread restriction roUrlTransfer has. -->
+             CODING_NOTES.md). STILL UNDER TEST: the streamFormat fix got it
+             further (state went none -> buffering, confirmed via telnet) but
+             it then got stuck in "buffering" forever and never reached
+             "playing" -- real decoder stall, not a culling/format-detection
+             issue. Root cause found: media/ghost.mp4 was 16x16px at 5fps,
+             which is plausibly below what Roku's hardware decoder is
+             validated for even though desktop players handle it fine.
+             Re-encoded at 128x128/24fps/H.264 Constrained Baseline with
+             -movflags +faststart -- confirm via telnet before trusting this.
+             Render size/opacity here (80x80, 0.15) are still from the
+             size-testing round and should shrink back down once playback is
+             actually confirmed working. Real video node, not a Task -- video
+             playback isn't subject to the MAIN|TASK-thread restriction
+             roUrlTransfer has. -->
         <Video id="ghostVideo" width="80" height="80" translation="[0, 0]" opacity="0.15" loop="true" enableScreenSaverWhilePlaying="false" />
         <Timer id="refreshTimer" repeat="true" duration="60" />
         <Timer id="scrollTimer" repeat="true" duration="0.03" />
