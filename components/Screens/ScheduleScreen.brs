@@ -46,6 +46,8 @@ sub init()
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
     m.ghostVideo = m.top.findNode("ghostVideo")
     m.ghostVideo.observeField("state", "onGhostVideoState")
+    m.warpMenu = m.top.findNode("warpMenu")
+    m.warpMenuList = m.top.findNode("warpMenuList")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -64,6 +66,10 @@ sub init()
     m.sectionBounds = []
     m.currentSectionIdx = -1
     m.stickyHeader.visible = false
+    m.warpMenuOpen = false
+    m.warpMenuIdx = 0
+    m.WARP_ROW_HEIGHT = 56
+    m.WARP_VISIBLE_ROWS = 10
 end sub
 
 sub screenShown()
@@ -194,6 +200,17 @@ sub buildContent(sections as Object)
     ' leaving the last frame stuck on screen with no timers left running.
     ' See CODING_NOTES.md "Resilience" for the incident this came from.
     try
+        ' A 60s refresh landing while the warp menu is open would otherwise
+        ' leave it showing rows built from the section list that's about to
+        ' be replaced below -- simplest fix is just closing it; m.scrollState
+        ' is untouched by openWarpMenu() (only its timers stop), so the
+        ' normal wasManuallyPaused handling right below still does the right
+        ' thing with whatever state scrolling was actually in before it opened.
+        if m.warpMenuOpen then
+            m.warpMenuOpen = false
+            m.warpMenu.visible = false
+        end if
+
         previousScrollY = m.scrollY
         wasManuallyPaused = (m.scrollState = "manualPaused")
 
@@ -317,6 +334,138 @@ function colorsForDept(department as String) as Object
     return { bg: "0x1A1A1AFF", accent: "0x666666FF" }
 end function
 
+' Work-center warp menu (Left key) -- lets a full scroll-through (several
+' minutes with real production data) be skipped by jumping straight to a
+' section. Built fresh from m.sectionBounds every time it opens rather than
+' kept live while hidden -- it's only ever on screen momentarily, and
+' sections only change on a data refresh anyway.
+sub openWarpMenu()
+    try
+        if m.sectionBounds.Count() = 0 then return
+
+        m.scrollTimer.control = "stop"
+        m.pauseTimer.control = "stop"
+        m.manualPauseTimer.control = "stop"
+
+        m.warpMenuList.removeChildren(m.warpMenuList.getChildren(-1, 0))
+        for i = 0 to m.sectionBounds.Count() - 1
+            m.warpMenuList.appendChild(buildWarpMenuRow(m.sectionBounds[i].section, i))
+        end for
+        m.warpMenuList.translation = [0, 0]
+
+        m.warpMenuIdx = m.currentSectionIdx
+        if m.warpMenuIdx < 0 then m.warpMenuIdx = 0
+        m.warpMenuOpen = true
+        m.warpMenu.visible = true
+        highlightWarpMenuRow()
+    catch e
+        print "openWarpMenu error: "; e.getMessage()
+        m.warpMenuOpen = false
+        m.warpMenu.visible = false
+    end try
+end sub
+
+function buildWarpMenuRow(section as Object, idx as Integer) as Object
+    colors = colorsForDept(section.department)
+
+    group = CreateObject("roSGNode", "Group")
+    group.translation = [0, idx * m.WARP_ROW_HEIGHT]
+
+    bg = CreateObject("roSGNode", "Rectangle")
+    bg.id = "bg"
+    bg.width = 640
+    bg.height = m.WARP_ROW_HEIGHT - 2
+    bg.color = colors.bg
+    group.appendChild(bg)
+
+    accent = CreateObject("roSGNode", "Rectangle")
+    accent.width = 6
+    accent.height = m.WARP_ROW_HEIGHT - 2
+    accent.color = colors.accent
+    group.appendChild(accent)
+
+    wcLabel = CreateObject("roSGNode", "Label")
+    wcLabel.text = section.wc
+    wcLabel.translation = [26, 12]
+    wcLabel.font = "font:MediumBoldSystemFont"
+    wcLabel.color = "0xFFFFFFFF"
+    group.appendChild(wcLabel)
+
+    deptLabel = CreateObject("roSGNode", "Label")
+    deptLabel.text = section.department + "   -   " + section.wc_group
+    deptLabel.translation = [260, 17]
+    deptLabel.font = "font:SmallSystemFont"
+    deptLabel.color = "0x999999FF"
+    group.appendChild(deptLabel)
+
+    return group
+end function
+
+' Snaps (not animates -- this is discrete keyboard selection, not auto-
+' scroll) the highlighted row's background and keeps it inside
+' warpMenuViewport's clipped window by shifting warpMenuList's translation.
+sub highlightWarpMenuRow()
+    try
+        for i = 0 to m.warpMenuList.getChildCount() - 1
+            row = m.warpMenuList.getChild(i)
+            bg = row.findNode("bg")
+            if i = m.warpMenuIdx then
+                bg.color = "0x2A5A8AFF"
+            else
+                bg.color = colorsForDept(m.sectionBounds[i].section.department).bg
+            end if
+        end for
+
+        targetTop = m.warpMenuIdx * m.WARP_ROW_HEIGHT
+        targetBottom = targetTop + m.WARP_ROW_HEIGHT
+        viewTop = -m.warpMenuList.translation[1]
+        viewBottom = viewTop + (m.WARP_VISIBLE_ROWS * m.WARP_ROW_HEIGHT)
+        if targetTop < viewTop then
+            m.warpMenuList.translation = [0, -targetTop]
+        else if targetBottom > viewBottom then
+            m.warpMenuList.translation = [0, -(targetBottom - (m.WARP_VISIBLE_ROWS * m.WARP_ROW_HEIGHT))]
+        end if
+    catch e
+        print "highlightWarpMenuRow error: "; e.getMessage()
+    end try
+end sub
+
+sub closeWarpMenu()
+    try
+        m.warpMenuOpen = false
+        m.warpMenu.visible = false
+
+        ' Resume auto-scroll the same way manualScroll() does -- paused, then
+        ' auto-resumes a few seconds after the last input, rather than snapping
+        ' straight back into motion right as the menu closes.
+        maxScroll = m.contentHeight - m.viewportHeight
+        if maxScroll > 0 then
+            m.scrollState = "manualPaused"
+            m.manualPauseTimer.control = "stop"
+            m.manualPauseTimer.control = "start"
+        end if
+    catch e
+        print "closeWarpMenu error: "; e.getMessage()
+        m.warpMenuOpen = false
+        m.scrollState = "idle"
+    end try
+end sub
+
+sub warpToSelection()
+    try
+        target = m.sectionBounds[m.warpMenuIdx]
+        maxScroll = m.contentHeight - m.viewportHeight
+
+        m.scrollY = target.startY
+        if m.scrollY > maxScroll then m.scrollY = maxScroll
+        if m.scrollY < 0 then m.scrollY = 0
+        applyScroll()
+    catch e
+        print "warpToSelection error: "; e.getMessage()
+    end try
+    closeWarpMenu()
+end sub
+
 function buildJobRow(job as Object, y as Integer) as Object
     group = CreateObject("roSGNode", "Group")
     group.translation = [0, y]
@@ -427,9 +576,32 @@ end sub
 ' unattended on a shop floor TV and shouldn't be easy to trigger by accident.
 ' Up/Down scroll manually; auto-scroll pauses while in manual control and
 ' resumes a few seconds after the last press, same idea as the web kiosk
-' pausing on wheel/touch input.
+' pausing on wheel/touch input. Left opens the work-center warp menu -- see
+' openWarpMenu()'s comment for why.
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
+
+    if m.warpMenuOpen then
+        ' Swallow every key while the menu is open (the trailing `return true`
+        ' below) so Up/Down can't also drive the main schedule's manualScroll
+        ' underneath it, and "options" can't reset setup mid-menu.
+        if key = "up" then
+            if m.warpMenuIdx > 0 then
+                m.warpMenuIdx = m.warpMenuIdx - 1
+                highlightWarpMenuRow()
+            end if
+        else if key = "down" then
+            if m.warpMenuIdx < m.sectionBounds.Count() - 1 then
+                m.warpMenuIdx = m.warpMenuIdx + 1
+                highlightWarpMenuRow()
+            end if
+        else if key = "OK" then
+            warpToSelection()
+        else if key = "left" or key = "back" then
+            closeWarpMenu()
+        end if
+        return true
+    end if
 
     if key = "options" then
         m.top.reconfigure = true
@@ -439,6 +611,9 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         return true
     else if key = "down" then
         manualScroll(200)
+        return true
+    else if key = "left" then
+        openWarpMenu()
         return true
     end if
     return false
