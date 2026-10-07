@@ -12,18 +12,12 @@ sub init()
         { x: 1620, w: 260, key: "currwc" }
     ]
 
-    ' Keyword -> (bg, accent) color pairs, ported from update_schedule.py's
-    ' _DEPT_DEFAULTS so department section colors match the web kiosk.
-    m.DEPT_COLORS = {
-        assembly:   { bg: "0x0D2B1AFF", accent: "0x1A6640FF" }
-        cnc:        { bg: "0x0D1A2BFF", accent: "0x1A4466FF" }
-        inspection: { bg: "0x1E0D2BFF", accent: "0x4D2080FF" }
-        shipping:   { bg: "0x2B1A0DFF", accent: "0x664020FF" }
-        welding:    { bg: "0x2B0D0DFF", accent: "0x661A1AFF" }
-        manual:     { bg: "0x0D2B2BFF", accent: "0x1A6666FF" }
-        machine:    { bg: "0x1A1A0DFF", accent: "0x404020FF" }
-        engineer:   { bg: "0x1A0D1AFF", accent: "0x401A40FF" }
-    }
+    ' Department colors come from shop-schedule's dept_colors.json (fetched by
+    ' ScheduleTask alongside schedule.json), not a hardcoded table -- a shop's
+    ' actual department names aren't known ahead of time and are configurable
+    ' per shop via options.html. See colorsForDept(). Empty until the first
+    ' successful fetch; colorsForDept()'s neutral fallback covers that gap.
+    m.deptColors = {}
 
     m.titleLabel = m.top.findNode("titleLabel")
     m.metaLabel = m.top.findNode("metaLabel")
@@ -154,6 +148,12 @@ end function
 
 sub onScheduleData()
     try
+        ' Independent of scheduleData below -- ScheduleTask fetches both every
+        ' run, so this stays current even on a cycle where schedule.json
+        ' itself fails (deptColors keeps its last good value either way,
+        ' see ScheduleTask.xml's field comment).
+        if m.scheduleTask.deptColors <> invalid then m.deptColors = m.scheduleTask.deptColors
+
         data = m.scheduleTask.scheduleData
         m.loadingLabel.visible = false
         if data = invalid then
@@ -307,14 +307,32 @@ sub updateStickyHeader(idx as Integer)
     m.stickyDeptLabel.text = section.department + "   -   " + section.wc_group
 end sub
 
+' Looks up this department's colors from dept_colors.json (see m.deptColors
+' in init()) -- an exact lowercase-name match, same keying shop-schedule
+' itself uses, not the substring/keyword matching this replaced. Falls back
+' to a neutral gray for any department not yet in that file (e.g. before
+' the first successful fetch, or a genuinely new department shop-schedule
+' itself hasn't persisted a color for yet either).
 function colorsForDept(department as String) as Object
-    deptLower = LCase(department)
-    for each keyword in m.DEPT_COLORS
-        if deptLower.InStr(0, keyword) >= 0 then
-            return m.DEPT_COLORS[keyword]
-        end if
-    end for
+    entry = m.deptColors[LCase(department)]
+    if entry <> invalid and isHexColor(entry.bg) and isHexColor(entry.accent) then
+        return { bg: toRokuColor(entry.bg), accent: toRokuColor(entry.accent) }
+    end if
     return { bg: "0x1A1A1AFF", accent: "0x666666FF" }
+end function
+
+' Re-validated here, not just trusted from the server -- same principle as
+' shop-schedule's own CODING_NOTES.md Security section ("validate hex color
+' strings... again at render time"), applied on this side of the fetch too.
+function isHexColor(s as Dynamic) as Boolean
+    if type(s) <> "String" then return false
+    return Len(s) = 7 and Left(s, 1) = "#"
+end function
+
+' "#rrggbb" (dept_colors.json) -> "0xRRGGBBFF" (Roku SceneGraph color field,
+' full opacity).
+function toRokuColor(hexColor as String) as String
+    return "0x" + Mid(hexColor, 2) + "FF"
 end function
 
 function buildJobRow(job as Object, y as Integer) as Object

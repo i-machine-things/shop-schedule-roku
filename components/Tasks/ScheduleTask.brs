@@ -41,4 +41,34 @@ sub fetchSchedule()
         m.top.scheduleData = invalid
         m.top.errorMessage = "Could not reach server (timed out)."
     end if
+
+    fetchDeptColors()
+end sub
+
+' Per-shop department colors, configured via shop-schedule's options.html --
+' see ScheduleTask.xml's field comment for why this doesn't fall back to a
+' hardcoded table on failure. Separate request from schedule.json above:
+' deliberately doesn't affect scheduleData/errorMessage either way, since a
+' miss here is a cosmetic color issue, not a reason to blank the kiosk.
+sub fetchDeptColors()
+    url = m.top.serverUrl + "/dept_colors.json"
+
+    request = CreateObject("roUrlTransfer")
+    request.SetUrl(url)
+    request.SetCertificatesFile("common:/certs/ca-bundle.crt")
+    request.InitClientCertificates()
+
+    port = CreateObject("roMessagePort")
+    request.SetPort(port)
+    request.RetainBodyOnError(true)
+    request.AddHeader("Accept", "application/json")
+    request.AsyncGetToString()
+
+    msg = wait(10000, port)
+    if type(msg) = "roUrlEvent" and msg.GetResponseCode() = 200 then
+        data = ParseJson(msg.GetString())
+        if data <> invalid then m.top.deptColors = data
+    else
+        if type(msg) <> "roUrlEvent" then request.AsyncCancel()
+    end if
 end sub
