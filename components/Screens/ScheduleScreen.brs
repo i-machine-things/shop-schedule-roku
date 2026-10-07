@@ -33,6 +33,7 @@ sub init()
     m.stickyAccent = m.top.findNode("stickyAccent")
     m.stickyWcLabel = m.top.findNode("stickyWcLabel")
     m.stickyDeptLabel = m.top.findNode("stickyDeptLabel")
+    m.stickyLoadLabel = m.top.findNode("stickyLoadLabel")
     m.viewport = m.top.findNode("viewport")
     m.scrollContent = m.top.findNode("scrollContent")
     m.errorBanner = m.top.findNode("errorBanner")
@@ -280,7 +281,50 @@ function buildSectionHeader(section as Object, y as Integer) as Object
     deptLabel.color = "0x999999FF"
     group.appendChild(deptLabel)
 
+    loadLabel = CreateObject("roSGNode", "Label")
+    loadLabel.text = workCenterLoadText(section)
+    loadLabel.translation = [1450, 20]
+    loadLabel.width = 450
+    loadLabel.horizAlign = "right"
+    loadLabel.font = "font:SmallSystemFont"
+    loadLabel.color = "0x4AAFFFFF"
+    group.appendChild(loadLabel)
+
     return group
+end function
+
+' "X.X wk load" (or "open now" if nothing's queued), plus the gap size when
+' there's an actual bounded opening right after that point -- matches
+' update_schedule.py's generate_html() wording and the same reasoning: load
+' alone says *when* there's room, not *how much*, and a 1-week hole can't
+' take a 2-week job. load_weeks/gap_weeks come from schedule.json -- missing
+' (invalid) on data from a shop-schedule version that predates this field,
+' not just a theoretical case.
+function workCenterLoadText(section as Object) as String
+    loadWeeks = 0.0
+    if section.load_weeks <> invalid then loadWeeks = section.load_weeks
+
+    if loadWeeks > 0 then
+        text = fmt1(loadWeeks) + " wk load"
+    else
+        text = "open now"
+    end if
+
+    if section.gap_weeks <> invalid then
+        text = text + " (" + fmt1(section.gap_weeks) + " wk gap)"
+    end if
+    return text
+end function
+
+' Formats a float to one decimal place as a string. Re-rounds rather than
+' trusting the value is already clean -- ParseJson can hand back e.g.
+' 2.2999999999999998 for a server-sent 2.3, and Str()'s own formatting is
+' locale/precision-dependent, not something to rely on for a fixed 1dp string.
+function fmt1(n as Float) as String
+    scaled = Int(n * 10 + 0.5)
+    whole = scaled \ 10
+    frac = scaled Mod 10
+    return whole.ToStr() + "." + frac.ToStr()
 end function
 
 ' Always visible once there's at least one section -- deliberately simple.
@@ -305,6 +349,7 @@ sub updateStickyHeader(idx as Integer)
     m.stickyAccent.color = colors.accent
     m.stickyWcLabel.text = section.wc
     m.stickyDeptLabel.text = section.department + "   -   " + section.wc_group
+    m.stickyLoadLabel.text = workCenterLoadText(section)
 end sub
 
 function colorsForDept(department as String) as Object

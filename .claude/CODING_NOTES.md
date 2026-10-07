@@ -13,6 +13,7 @@
 
 ## BrightScript / Roku Patterns
 
+- **Don't trust `Str()` or raw `ParseJson()` floats for fixed-decimal display formatting.** `ParseJson` can hand back `2.2999999999999998` for a server-sent `2.3`, and `Str()`'s own formatting is locale/precision-dependent. For a fixed N-decimal string, scale to an integer, round, then split: `scaled = Int(n * 10 + 0.5)` then `whole = scaled \ 10` / `frac = scaled Mod 10` (see `fmt1()`, work-center load display).
 - **Standalone `TextEditBox` doesn't work for real text entry on Roku hardware** (same finding as `seerr-roku`) — `SetupScreen` uses a focusable row that opens `KeyboardDialog` on OK instead.
 - **A top-level bare assignment statement outside any `sub`/`function` is invalid BrightScript** — `m.COLS = [...]` has to be built inside `init()`, not at file scope above it, even with a comment implying it's "set below." Caught this in `ScheduleScreen.brs` before it ever reached CI.
 - **No Node.js available in this dev environment to run `bslint` locally** — written and manually re-reviewed carefully against BrightScript syntax, but CI's lint job is the first real syntax check these files get. Expect to iterate on CI failures for the first PR.
