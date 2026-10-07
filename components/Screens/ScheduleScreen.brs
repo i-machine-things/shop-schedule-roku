@@ -357,8 +357,15 @@ sub openWarpMenu()
         m.manualPauseTimer.control = "stop"
 
         m.warpMenuList.removeChildren(m.warpMenuList.getChildren(-1, 0))
+        ' Direct node references, not re-found by id later -- see
+        ' highlightWarpMenuRow()'s comment for why this replaced an earlier
+        ' findNode("bg")-per-row version that silently never highlighted
+        ' anything on real hardware.
+        m.warpMenuRowBgs = []
         for i = 0 to m.sectionBounds.Count() - 1
-            m.warpMenuList.appendChild(buildWarpMenuRow(m.sectionBounds[i].section, i))
+            rowInfo = buildWarpMenuRow(m.sectionBounds[i].section, i)
+            m.warpMenuList.appendChild(rowInfo.group)
+            m.warpMenuRowBgs.push(rowInfo.bg)
         end for
         m.warpMenuList.translation = [0, 0]
 
@@ -383,12 +390,13 @@ end sub
 ' existing sidebar filter (options.html), not this screen's own per-
 ' department section-header styling. See highlightWarpMenuRow() for the
 ' selected-state color swap.
+' Returns { group, bg } -- the caller keeps bg directly in m.warpMenuRowBgs
+' rather than re-finding it by id later (see openWarpMenu()).
 function buildWarpMenuRow(section as Object, idx as Integer) as Object
     group = CreateObject("roSGNode", "Group")
     group.translation = [10, idx * m.WARP_ROW_HEIGHT]
 
     bg = CreateObject("roSGNode", "Rectangle")
-    bg.id = "bg"
     bg.width = 300
     bg.height = m.WARP_ROW_HEIGHT - 4
     bg.color = m.WARP_ROW_COLOR
@@ -401,21 +409,26 @@ function buildWarpMenuRow(section as Object, idx as Integer) as Object
     wcLabel.color = "0xFFFFFFFF"
     group.appendChild(wcLabel)
 
-    return group
+    return { group: group, bg: bg }
 end function
 
 ' Snaps (not animates -- this is discrete keyboard selection, not the
 ' panel's own slide) the highlighted row's background and keeps it inside
 ' warpMenuViewport's clipped window by shifting warpMenuList's translation.
+' Earlier version re-found each row's background via row.findNode("bg")
+' every call instead of keeping the reference from buildWarpMenuRow() --
+' confirmed on real hardware that nothing ever actually highlighted, with
+' no error printed either. Kept the direct-reference array instead of
+' digging further into why findNode didn't surface the row here, since it
+' removes the indirection entirely rather than explaining one specific
+' failure of it.
 sub highlightWarpMenuRow()
     try
-        for i = 0 to m.warpMenuList.getChildCount() - 1
-            row = m.warpMenuList.getChild(i)
-            bg = row.findNode("bg")
+        for i = 0 to m.warpMenuRowBgs.Count() - 1
             if i = m.warpMenuIdx then
-                bg.color = m.WARP_ROW_SELECTED_COLOR
+                m.warpMenuRowBgs[i].color = m.WARP_ROW_SELECTED_COLOR
             else
-                bg.color = m.WARP_ROW_COLOR
+                m.warpMenuRowBgs[i].color = m.WARP_ROW_COLOR
             end if
         end for
 
