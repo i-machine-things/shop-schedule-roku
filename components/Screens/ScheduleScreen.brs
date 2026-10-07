@@ -343,7 +343,7 @@ function colorsForDept(department as String) as Object
     return { bg: "0x1A1A1AFF", accent: "0x666666FF" }
 end function
 
-' Work-center warp menu (Left key) -- lets a full scroll-through (several
+' Work-center warp menu (OK key) -- lets a full scroll-through (several
 ' minutes with real production data) be skipped by jumping straight to a
 ' section. Built fresh from m.sectionBounds every time it opens rather than
 ' kept live while hidden -- it's only ever on screen momentarily, and
@@ -602,8 +602,12 @@ end sub
 ' unattended on a shop floor TV and shouldn't be easy to trigger by accident.
 ' Up/Down scroll manually; auto-scroll pauses while in manual control and
 ' resumes a few seconds after the last press, same idea as the web kiosk
-' pausing on wheel/touch input. Left opens the work-center warp menu -- see
-' openWarpMenu()'s comment for why.
+' pausing on wheel/touch input. OK opens the work-center warp menu and
+' (once open) selects the highlighted row -- same button, context-dependent,
+' matching SetupScreen.brs's existing OK-does-different-things-by-focus
+' pattern rather than introducing a new one. Chosen over an earlier Left-to-
+' open version that tested as unintuitive -- OK is the one button every
+' remote user already reaches for to "do the thing."
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
 
@@ -623,7 +627,7 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
             end if
         else if key = "OK" then
             warpToSelection()
-        else if key = "left" or key = "back" then
+        else if key = "back" then
             closeWarpMenu()
         end if
         return true
@@ -638,7 +642,7 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
     else if key = "down" then
         manualScroll(200)
         return true
-    else if key = "left" then
+    else if key = "OK" then
         openWarpMenu()
         return true
     end if

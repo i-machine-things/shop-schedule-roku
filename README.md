@@ -17,7 +17,7 @@ Roku's public SDK has no web-view/embedded-browser component, so this channel ca
 * **Sticky work-center headers** — stays fixed at the top while its jobs scroll past, swapped for the next section's header exactly when it reaches the top (like the web kiosk's `position:sticky` section headers).
 * **Resilient to network blips** — a failed poll shows a small warning banner without blanking the last good schedule.
 * **Manual scroll** — Up/Down on the remote scrolls directly; auto-scroll resumes automatically a few seconds after the last press.
-* **Work-center warp menu** — Left opens a jump list of every work center currently on screen; Up/Down to pick one, OK to jump straight there, Left/Back to cancel. Skips a full scroll-through, which can take several minutes with real production data.
+* **Work-center warp menu** — OK opens a jump list of every work center currently on screen; Up/Down to pick one, OK again to jump straight there, Back to cancel. Skips a full scroll-through, which can take several minutes with real production data.
 * **One-time setup** — enter the server address once; it's remembered in the Roku's registry.
 
 ---

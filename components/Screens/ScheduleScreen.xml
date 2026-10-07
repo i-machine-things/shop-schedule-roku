@@ -55,7 +55,7 @@
 
         <Label id="loadingLabel" text="Loading schedule..." translation="[760, 520]" font="font:LargeSystemFont" color="0x4AAFFFFF" />
 
-        <!-- Work-center warp menu (Left key) -- matches the web kiosk's
+        <!-- Work-center warp menu (OK key) -- matches the web kiosk's
              existing left sidebar work-center filter (see shop-schedule's
              options.html): a 320px panel docked to the left edge, uniform
              green cells, slides in/out rather than a centered dim-overlay
