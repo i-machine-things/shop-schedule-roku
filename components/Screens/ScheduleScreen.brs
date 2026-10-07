@@ -48,6 +48,9 @@ sub init()
     m.ghostVideo.observeField("state", "onGhostVideoState")
     m.warpMenu = m.top.findNode("warpMenu")
     m.warpMenuList = m.top.findNode("warpMenuList")
+    m.warpMenuOpenAnim = m.top.findNode("warpMenuOpenAnim")
+    m.warpMenuCloseAnim = m.top.findNode("warpMenuCloseAnim")
+    m.warpMenuCloseAnim.observeField("state", "onWarpMenuCloseAnimState")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -68,8 +71,14 @@ sub init()
     m.stickyHeader.visible = false
     m.warpMenuOpen = false
     m.warpMenuIdx = 0
-    m.WARP_ROW_HEIGHT = 56
-    m.WARP_VISIBLE_ROWS = 10
+    m.WARP_ROW_HEIGHT = 48
+    m.WARP_VISIBLE_ROWS = 21
+    ' Uniform green cells, contrasting-blue selection -- matches the web
+    ' kiosk's existing work-center sidebar (options.html), not per-department
+    ' colors like the rest of this screen. Blue reuses the app's existing
+    ' accent color (job numbers, clock) rather than inventing a new one.
+    m.WARP_ROW_COLOR = "0x2E7D32FF"
+    m.WARP_ROW_SELECTED_COLOR = "0x4AAFFFFF"
 end sub
 
 sub screenShown()
@@ -356,7 +365,12 @@ sub openWarpMenu()
         m.warpMenuIdx = m.currentSectionIdx
         if m.warpMenuIdx < 0 then m.warpMenuIdx = 0
         m.warpMenuOpen = true
+        ' Reset off-screen before showing/animating -- guards against a
+        ' prior close animation having been interrupted mid-slide (e.g. by
+        ' buildContent()'s force-close) and leaving translation.x partway in.
+        m.warpMenu.translation = [-320, 0]
         m.warpMenu.visible = true
+        m.warpMenuOpenAnim.control = "start"
         highlightWarpMenuRow()
     catch e
         print "openWarpMenu error: "; e.getMessage()
@@ -365,44 +379,33 @@ sub openWarpMenu()
     end try
 end sub
 
+' Uniform green cell, work-center name only -- matches the web kiosk's
+' existing sidebar filter (options.html), not this screen's own per-
+' department section-header styling. See highlightWarpMenuRow() for the
+' selected-state color swap.
 function buildWarpMenuRow(section as Object, idx as Integer) as Object
-    colors = colorsForDept(section.department)
-
     group = CreateObject("roSGNode", "Group")
-    group.translation = [0, idx * m.WARP_ROW_HEIGHT]
+    group.translation = [10, idx * m.WARP_ROW_HEIGHT]
 
     bg = CreateObject("roSGNode", "Rectangle")
     bg.id = "bg"
-    bg.width = 640
-    bg.height = m.WARP_ROW_HEIGHT - 2
-    bg.color = colors.bg
+    bg.width = 300
+    bg.height = m.WARP_ROW_HEIGHT - 4
+    bg.color = m.WARP_ROW_COLOR
     group.appendChild(bg)
-
-    accent = CreateObject("roSGNode", "Rectangle")
-    accent.width = 6
-    accent.height = m.WARP_ROW_HEIGHT - 2
-    accent.color = colors.accent
-    group.appendChild(accent)
 
     wcLabel = CreateObject("roSGNode", "Label")
     wcLabel.text = section.wc
-    wcLabel.translation = [26, 12]
-    wcLabel.font = "font:MediumBoldSystemFont"
+    wcLabel.translation = [14, 11]
+    wcLabel.font = "font:SmallBoldSystemFont"
     wcLabel.color = "0xFFFFFFFF"
     group.appendChild(wcLabel)
-
-    deptLabel = CreateObject("roSGNode", "Label")
-    deptLabel.text = section.department + "   -   " + section.wc_group
-    deptLabel.translation = [260, 17]
-    deptLabel.font = "font:SmallSystemFont"
-    deptLabel.color = "0x999999FF"
-    group.appendChild(deptLabel)
 
     return group
 end function
 
-' Snaps (not animates -- this is discrete keyboard selection, not auto-
-' scroll) the highlighted row's background and keeps it inside
+' Snaps (not animates -- this is discrete keyboard selection, not the
+' panel's own slide) the highlighted row's background and keeps it inside
 ' warpMenuViewport's clipped window by shifting warpMenuList's translation.
 sub highlightWarpMenuRow()
     try
@@ -410,9 +413,9 @@ sub highlightWarpMenuRow()
             row = m.warpMenuList.getChild(i)
             bg = row.findNode("bg")
             if i = m.warpMenuIdx then
-                bg.color = "0x2A5A8AFF"
+                bg.color = m.WARP_ROW_SELECTED_COLOR
             else
-                bg.color = colorsForDept(m.sectionBounds[i].section.department).bg
+                bg.color = m.WARP_ROW_COLOR
             end if
         end for
 
@@ -430,10 +433,13 @@ sub highlightWarpMenuRow()
     end try
 end sub
 
+' Visibility turns off in onWarpMenuCloseAnimState() once the slide-out
+' animation actually finishes, not here -- hiding immediately would skip
+' straight past it instead of sliding out.
 sub closeWarpMenu()
     try
         m.warpMenuOpen = false
-        m.warpMenu.visible = false
+        m.warpMenuCloseAnim.control = "start"
 
         ' Resume auto-scroll the same way manualScroll() does -- paused, then
         ' auto-resumes a few seconds after the last input, rather than snapping
@@ -447,8 +453,15 @@ sub closeWarpMenu()
     catch e
         print "closeWarpMenu error: "; e.getMessage()
         m.warpMenuOpen = false
+        m.warpMenu.visible = false
         m.scrollState = "idle"
     end try
+end sub
+
+sub onWarpMenuCloseAnimState()
+    if m.warpMenuCloseAnim.state = "stopped" then
+        m.warpMenu.visible = false
+    end if
 end sub
 
 sub warpToSelection()
