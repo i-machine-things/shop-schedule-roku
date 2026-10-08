@@ -46,6 +46,11 @@ sub init()
     m.manualPauseTimer = m.top.findNode("manualPauseTimer")
     m.ghostVideo = m.top.findNode("ghostVideo")
     m.ghostVideo.observeField("state", "onGhostVideoState")
+    m.warpMenu = m.top.findNode("warpMenu")
+    m.warpMenuList = m.top.findNode("warpMenuList")
+    m.warpMenuOpenAnim = m.top.findNode("warpMenuOpenAnim")
+    m.warpMenuCloseAnim = m.top.findNode("warpMenuCloseAnim")
+    m.warpMenuCloseAnim.observeField("state", "onWarpMenuCloseAnimState")
 
     m.scheduleTask.observeField("scheduleData", "onScheduleData")
     m.refreshTimer.observeField("fire", "onRefreshTimer")
@@ -64,6 +69,16 @@ sub init()
     m.sectionBounds = []
     m.currentSectionIdx = -1
     m.stickyHeader.visible = false
+    m.warpMenuOpen = false
+    m.warpMenuIdx = 0
+    m.WARP_ROW_HEIGHT = 48
+    m.WARP_VISIBLE_ROWS = 21
+    ' Uniform green cells, contrasting-blue selection -- matches the web
+    ' kiosk's existing work-center sidebar (options.html), not per-department
+    ' colors like the rest of this screen. Blue reuses the app's existing
+    ' accent color (job numbers, clock) rather than inventing a new one.
+    m.WARP_ROW_COLOR = "0x2E7D32FF"
+    m.WARP_ROW_SELECTED_COLOR = "0x4AAFFFFF"
 end sub
 
 sub screenShown()
@@ -194,6 +209,17 @@ sub buildContent(sections as Object)
     ' leaving the last frame stuck on screen with no timers left running.
     ' See CODING_NOTES.md "Resilience" for the incident this came from.
     try
+        ' A 60s refresh landing while the warp menu is open would otherwise
+        ' leave it showing rows built from the section list that's about to
+        ' be replaced below -- simplest fix is just closing it; m.scrollState
+        ' is untouched by openWarpMenu() (only its timers stop), so the
+        ' normal wasManuallyPaused handling right below still does the right
+        ' thing with whatever state scrolling was actually in before it opened.
+        if m.warpMenuOpen then
+            m.warpMenuOpen = false
+            m.warpMenu.visible = false
+        end if
+
         previousScrollY = m.scrollY
         wasManuallyPaused = (m.scrollState = "manualPaused")
 
@@ -317,6 +343,155 @@ function colorsForDept(department as String) as Object
     return { bg: "0x1A1A1AFF", accent: "0x666666FF" }
 end function
 
+' Work-center warp menu (OK key) -- lets a full scroll-through (several
+' minutes with real production data) be skipped by jumping straight to a
+' section. Built fresh from m.sectionBounds every time it opens rather than
+' kept live while hidden -- it's only ever on screen momentarily, and
+' sections only change on a data refresh anyway.
+sub openWarpMenu()
+    try
+        if m.sectionBounds.Count() = 0 then return
+
+        m.scrollTimer.control = "stop"
+        m.pauseTimer.control = "stop"
+        m.manualPauseTimer.control = "stop"
+
+        m.warpMenuList.removeChildren(m.warpMenuList.getChildren(-1, 0))
+        ' Direct node references, not re-found by id later -- see
+        ' highlightWarpMenuRow()'s comment for why this replaced an earlier
+        ' findNode("bg")-per-row version that silently never highlighted
+        ' anything on real hardware.
+        m.warpMenuRowBgs = []
+        for i = 0 to m.sectionBounds.Count() - 1
+            rowInfo = buildWarpMenuRow(m.sectionBounds[i].section, i)
+            m.warpMenuList.appendChild(rowInfo.group)
+            m.warpMenuRowBgs.push(rowInfo.bg)
+        end for
+        m.warpMenuList.translation = [0, 0]
+
+        m.warpMenuIdx = m.currentSectionIdx
+        if m.warpMenuIdx < 0 then m.warpMenuIdx = 0
+        m.warpMenuOpen = true
+        ' Reset off-screen before showing/animating -- guards against a
+        ' prior close animation having been interrupted mid-slide (e.g. by
+        ' buildContent()'s force-close) and leaving translation.x partway in.
+        m.warpMenu.translation = [-320, 0]
+        m.warpMenu.visible = true
+        m.warpMenuOpenAnim.control = "start"
+        highlightWarpMenuRow()
+    catch e
+        print "openWarpMenu error: "; e.getMessage()
+        m.warpMenuOpen = false
+        m.warpMenu.visible = false
+    end try
+end sub
+
+' Uniform green cell, work-center name only -- matches the web kiosk's
+' existing sidebar filter (options.html), not this screen's own per-
+' department section-header styling. See highlightWarpMenuRow() for the
+' selected-state color swap.
+' Returns { group, bg } -- the caller keeps bg directly in m.warpMenuRowBgs
+' rather than re-finding it by id later (see openWarpMenu()).
+function buildWarpMenuRow(section as Object, idx as Integer) as Object
+    group = CreateObject("roSGNode", "Group")
+    group.translation = [10, idx * m.WARP_ROW_HEIGHT]
+
+    bg = CreateObject("roSGNode", "Rectangle")
+    bg.width = 300
+    bg.height = m.WARP_ROW_HEIGHT - 4
+    bg.color = m.WARP_ROW_COLOR
+    group.appendChild(bg)
+
+    wcLabel = CreateObject("roSGNode", "Label")
+    wcLabel.text = section.wc
+    wcLabel.translation = [14, 11]
+    wcLabel.font = "font:SmallBoldSystemFont"
+    wcLabel.color = "0xFFFFFFFF"
+    group.appendChild(wcLabel)
+
+    return { group: group, bg: bg }
+end function
+
+' Snaps (not animates -- this is discrete keyboard selection, not the
+' panel's own slide) the highlighted row's background and keeps it inside
+' warpMenuViewport's clipped window by shifting warpMenuList's translation.
+' Earlier version re-found each row's background via row.findNode("bg")
+' every call instead of keeping the reference from buildWarpMenuRow() --
+' confirmed on real hardware that nothing ever actually highlighted, with
+' no error printed either. Kept the direct-reference array instead of
+' digging further into why findNode didn't surface the row here, since it
+' removes the indirection entirely rather than explaining one specific
+' failure of it.
+sub highlightWarpMenuRow()
+    try
+        for i = 0 to m.warpMenuRowBgs.Count() - 1
+            if i = m.warpMenuIdx then
+                m.warpMenuRowBgs[i].color = m.WARP_ROW_SELECTED_COLOR
+            else
+                m.warpMenuRowBgs[i].color = m.WARP_ROW_COLOR
+            end if
+        end for
+
+        targetTop = m.warpMenuIdx * m.WARP_ROW_HEIGHT
+        targetBottom = targetTop + m.WARP_ROW_HEIGHT
+        viewTop = -m.warpMenuList.translation[1]
+        viewBottom = viewTop + (m.WARP_VISIBLE_ROWS * m.WARP_ROW_HEIGHT)
+        if targetTop < viewTop then
+            m.warpMenuList.translation = [0, -targetTop]
+        else if targetBottom > viewBottom then
+            m.warpMenuList.translation = [0, -(targetBottom - (m.WARP_VISIBLE_ROWS * m.WARP_ROW_HEIGHT))]
+        end if
+    catch e
+        print "highlightWarpMenuRow error: "; e.getMessage()
+    end try
+end sub
+
+' Visibility turns off in onWarpMenuCloseAnimState() once the slide-out
+' animation actually finishes, not here -- hiding immediately would skip
+' straight past it instead of sliding out.
+sub closeWarpMenu()
+    try
+        m.warpMenuOpen = false
+        m.warpMenuCloseAnim.control = "start"
+
+        ' Resume auto-scroll the same way manualScroll() does -- paused, then
+        ' auto-resumes a few seconds after the last input, rather than snapping
+        ' straight back into motion right as the menu closes.
+        maxScroll = m.contentHeight - m.viewportHeight
+        if maxScroll > 0 then
+            m.scrollState = "manualPaused"
+            m.manualPauseTimer.control = "stop"
+            m.manualPauseTimer.control = "start"
+        end if
+    catch e
+        print "closeWarpMenu error: "; e.getMessage()
+        m.warpMenuOpen = false
+        m.warpMenu.visible = false
+        m.scrollState = "idle"
+    end try
+end sub
+
+sub onWarpMenuCloseAnimState()
+    if m.warpMenuCloseAnim.state = "stopped" then
+        m.warpMenu.visible = false
+    end if
+end sub
+
+sub warpToSelection()
+    try
+        target = m.sectionBounds[m.warpMenuIdx]
+        maxScroll = m.contentHeight - m.viewportHeight
+
+        m.scrollY = target.startY
+        if m.scrollY > maxScroll then m.scrollY = maxScroll
+        if m.scrollY < 0 then m.scrollY = 0
+        applyScroll()
+    catch e
+        print "warpToSelection error: "; e.getMessage()
+    end try
+    closeWarpMenu()
+end sub
+
 function buildJobRow(job as Object, y as Integer) as Object
     group = CreateObject("roSGNode", "Group")
     group.translation = [0, y]
@@ -427,9 +602,36 @@ end sub
 ' unattended on a shop floor TV and shouldn't be easy to trigger by accident.
 ' Up/Down scroll manually; auto-scroll pauses while in manual control and
 ' resumes a few seconds after the last press, same idea as the web kiosk
-' pausing on wheel/touch input.
+' pausing on wheel/touch input. OK opens the work-center warp menu and
+' (once open) selects the highlighted row -- same button, context-dependent,
+' matching SetupScreen.brs's existing OK-does-different-things-by-focus
+' pattern rather than introducing a new one. Chosen over an earlier Left-to-
+' open version that tested as unintuitive -- OK is the one button every
+' remote user already reaches for to "do the thing."
 function onKeyEvent(key as String, press as Boolean) as Boolean
     if not press then return false
+
+    if m.warpMenuOpen then
+        ' Swallow every key while the menu is open (the trailing `return true`
+        ' below) so Up/Down can't also drive the main schedule's manualScroll
+        ' underneath it, and "options" can't reset setup mid-menu.
+        if key = "up" then
+            if m.warpMenuIdx > 0 then
+                m.warpMenuIdx = m.warpMenuIdx - 1
+                highlightWarpMenuRow()
+            end if
+        else if key = "down" then
+            if m.warpMenuIdx < m.sectionBounds.Count() - 1 then
+                m.warpMenuIdx = m.warpMenuIdx + 1
+                highlightWarpMenuRow()
+            end if
+        else if key = "OK" then
+            warpToSelection()
+        else if key = "back" then
+            closeWarpMenu()
+        end if
+        return true
+    end if
 
     if key = "options" then
         m.top.reconfigure = true
@@ -439,6 +641,9 @@ function onKeyEvent(key as String, press as Boolean) as Boolean
         return true
     else if key = "down" then
         manualScroll(200)
+        return true
+    else if key = "OK" then
+        openWarpMenu()
         return true
     end if
     return false
