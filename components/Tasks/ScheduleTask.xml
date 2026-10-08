@@ -7,5 +7,11 @@
         <field id="scheduleData" type="assocarray" />
         <!-- Set only when scheduleData is invalid -->
         <field id="errorMessage" type="string" value="" />
+        <!-- {lowercase_dept_name: {name, bg, accent}} from dept_colors.json --
+             the same per-shop-configured colors options.html lets a shop edit,
+             not a hardcoded table. Best-effort: unchanged (not cleared) if this
+             fetch fails, since a transient miss here shouldn't recolor the
+             whole kiosk gray for one refresh cycle. -->
+        <field id="deptColors" type="assocarray" />
     </interface>
 </component>
