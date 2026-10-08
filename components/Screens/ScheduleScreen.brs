@@ -311,10 +311,17 @@ end sub
 ' take a 2-week job. backlog_days/gap_days come from schedule.json -- missing
 ' (invalid) on data from a shop-schedule version that predates this field,
 ' not just a theoretical case.
+' A genuinely missing section.backlog_days (field absent entirely -- an
+' older shop-schedule server that predates this field, not a reported
+' zero) must NOT read as "open now". Confirmed this exact gap in practice,
+' not just in theory: a server running stale code made every work center
+' show "open now" during testing, even though real backlogs existed,
+' simply because schedule.json didn't have the field yet. CodeRabbit catch
+' on PR #7 after that happened.
 function workCenterBacklogText(section as Object) as String
-    backlogDays = 0
-    if section.backlog_days <> invalid then backlogDays = section.backlog_days
+    if section.backlog_days = invalid then return ""
 
+    backlogDays = section.backlog_days
     if backlogDays > 0 then
         text = fmtWeeksDays(backlogDays) + " backlog"
     else
