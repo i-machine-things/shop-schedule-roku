@@ -594,7 +594,7 @@ function buildJobRow(job as Object, y as Integer) as Object
     addCell(group, colByKey("job"),         job.job,         "0x4AAFFFFF", "font:MediumBoldSystemFont")
     addCell(group, colByKey("customer"),    job.customer,    "0xCCCCCCFF", "font:MediumSystemFont")
     addCell(group, colByKey("description"), job.description, "0x999999FF", "font:MediumSystemFont")
-    addCell(group, colByKey("oper"),        job.oper,        "0xCCCCCCFF", "font:MediumSystemFont")
+    addOperCell(group, colByKey("oper"), job.oper, job.oper_desc)
     addCell(group, colByKey("currwc"),      job.curr_wc,     "0xFFFFFFFF", "font:MediumBoldSystemFont")
 
     return group
@@ -616,6 +616,38 @@ sub addCell(parent as Object, col as Object, text as String, color as String, fo
     label.font = font
     label.color = color
     parent.appendChild(label)
+end sub
+
+' Oper's column is only 150px -- no room for a true sibling column (see the
+' file-header note on why this layout is deliberately capped at 5 fields).
+' operDesc rides inside the same cell as a smaller second line instead of
+' widening the row: wrap+maxLines=1+ellipsisText truncates cleanly at the
+' column width rather than overflowing into the next row or the currwc
+' column to its right. Needs a real-hardware screenshot to confirm actual
+' font metrics fit inside ROW_HEIGHT (60) -- sized from SmallBoldSystemFont/
+' SmallSystemFont used elsewhere in this file, not measured on-device.
+sub addOperCell(parent as Object, col as Object, operText as String, descText as Dynamic)
+    if operText = invalid then operText = ""
+    operLabel = CreateObject("roSGNode", "Label")
+    operLabel.text = operText
+    operLabel.translation = [col.x, 8]
+    operLabel.width = col.w
+    operLabel.font = "font:SmallBoldSystemFont"
+    operLabel.color = "0xCCCCCCFF"
+    parent.appendChild(operLabel)
+
+    if descText <> invalid and descText <> "" then
+        descLabel = CreateObject("roSGNode", "Label")
+        descLabel.text = descText
+        descLabel.translation = [col.x, 32]
+        descLabel.width = col.w
+        descLabel.wrap = true
+        descLabel.maxLines = 1
+        descLabel.ellipsisText = "..."
+        descLabel.font = "font:SmallSystemFont"
+        descLabel.color = "0x888888FF"
+        parent.appendChild(descLabel)
+    end if
 end sub
 
 ' Scroll loop: scroll down, pause at the bottom, snap to top, pause there,
