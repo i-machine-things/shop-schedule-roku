@@ -626,7 +626,7 @@ end sub
 ' column to its right. Needs a real-hardware screenshot to confirm actual
 ' font metrics fit inside ROW_HEIGHT (60) -- sized from SmallBoldSystemFont/
 ' SmallSystemFont used elsewhere in this file, not measured on-device.
-sub addOperCell(parent as Object, col as Object, operText as String, descText as String)
+sub addOperCell(parent as Object, col as Object, operText as String, descText as Dynamic)
     if operText = invalid then operText = ""
     operLabel = CreateObject("roSGNode", "Label")
     operLabel.text = operText
