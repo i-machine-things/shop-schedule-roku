@@ -33,7 +33,7 @@ sub init()
     m.stickyAccent = m.top.findNode("stickyAccent")
     m.stickyWcLabel = m.top.findNode("stickyWcLabel")
     m.stickyDeptLabel = m.top.findNode("stickyDeptLabel")
-    m.stickyLoadLabel = m.top.findNode("stickyLoadLabel")
+    m.stickyBacklogLabel = m.top.findNode("stickyBacklogLabel")
     m.viewport = m.top.findNode("viewport")
     m.scrollContent = m.top.findNode("scrollContent")
     m.errorBanner = m.top.findNode("errorBanner")
@@ -281,29 +281,29 @@ function buildSectionHeader(section as Object, y as Integer) as Object
     deptLabel.color = "0x999999FF"
     group.appendChild(deptLabel)
 
-    loadLabel = CreateObject("roSGNode", "Label")
-    loadLabel.text = workCenterLoadText(section)
-    loadLabel.translation = [700, 20]
-    loadLabel.font = "font:SmallSystemFont"
-    loadLabel.color = "0x4AAFFFFF"
-    group.appendChild(loadLabel)
+    backlogLabel = CreateObject("roSGNode", "Label")
+    backlogLabel.text = workCenterBacklogText(section)
+    backlogLabel.translation = [700, 20]
+    backlogLabel.font = "font:SmallSystemFont"
+    backlogLabel.color = "0x4AAFFFFF"
+    group.appendChild(backlogLabel)
 
     return group
 end function
 
-' "X.X wk load" (or "open now" if nothing's queued), plus the gap size when
+' "X.X wk backlog" (or "open now" if nothing's queued), plus the gap size when
 ' there's an actual bounded opening right after that point -- matches
-' update_schedule.py's generate_html() wording and the same reasoning: load
-' alone says *when* there's room, not *how much*, and a 1-week hole can't
-' take a 2-week job. load_weeks/gap_weeks come from schedule.json -- missing
+' update_schedule.py's generate_html() wording and the same reasoning:
+' backlog alone says *when* there's room, not *how much*, and a 1-week hole can't
+' take a 2-week job. backlog_weeks/gap_weeks come from schedule.json -- missing
 ' (invalid) on data from a shop-schedule version that predates this field,
 ' not just a theoretical case.
-function workCenterLoadText(section as Object) as String
-    loadWeeks = 0.0
-    if section.load_weeks <> invalid then loadWeeks = section.load_weeks
+function workCenterBacklogText(section as Object) as String
+    backlogWeeks = 0.0
+    if section.backlog_weeks <> invalid then backlogWeeks = section.backlog_weeks
 
-    if loadWeeks > 0 then
-        text = fmt1(loadWeeks) + " wk load"
+    if backlogWeeks > 0 then
+        text = fmt1(backlogWeeks) + " wk backlog"
     else
         text = "open now"
     end if
@@ -347,7 +347,7 @@ sub updateStickyHeader(idx as Integer)
     m.stickyAccent.color = colors.accent
     m.stickyWcLabel.text = section.wc
     m.stickyDeptLabel.text = section.department + "   -   " + section.wc_group
-    m.stickyLoadLabel.text = workCenterLoadText(section)
+    m.stickyBacklogLabel.text = workCenterBacklogText(section)
 end sub
 
 function colorsForDept(department as String) as Object

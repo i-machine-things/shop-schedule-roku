@@ -38,7 +38,7 @@
             <Rectangle id="stickyAccent" width="6" height="56" color="0x666666FF" />
             <Label id="stickyWcLabel" text="" translation="[30, 14]" font="font:LargeBoldSystemFont" color="0xFFFFFFFF" />
             <Label id="stickyDeptLabel" text="" translation="[360, 20]" font="font:SmallSystemFont" color="0x999999FF" />
-            <Label id="stickyLoadLabel" text="" translation="[700, 20]" font="font:SmallSystemFont" color="0x4AAFFFFF" />
+            <Label id="stickyBacklogLabel" text="" translation="[700, 20]" font="font:SmallSystemFont" color="0x4AAFFFFF" />
         </Group>
 
         <!-- Scroll viewport: below the app header, column labels, AND the sticky
