@@ -10,7 +10,7 @@
 
 [**shop-schedule**](https://github.com/i-machine-things/shop-schedule) is a Single Board Computer kiosk that pulls the current Foreman's Report (from JobBoss directly, or via a Gmail/PDF fallback) and serves it as an auto-scrolling web page. **ShopScheduleRoku** is an alternative display target for the same data — instead of a Banana Pi running Chromium in kiosk mode, point a Roku at the same server.
 
-Roku's public SDK has no web-view/embedded-browser component, so this channel can't just display `kiosk.html` directly. It polls a small JSON export (`/schedule.json`) that `shop-schedule`'s server exposes alongside the HTML pages, and renders a simplified table natively in BrightScript — just job number, customer, description, operation, and current work center per job, grouped by work center with the same department color scheme as the web kiosk, continuously auto-scrolling.
+Roku's public SDK has no web-view/embedded-browser component, so this channel can't just display `kiosk.html` directly. It polls a small JSON export (`/schedule.json`) that `shop-schedule`'s server exposes alongside the HTML pages, and renders a simplified table natively in BrightScript — just job number, customer, description, operation (with its own description as a second line), and current work center per job, grouped by work center with the same department color scheme as the web kiosk, continuously auto-scrolling.
 
 ### ✨ Features
 * **Native auto-scrolling display** grouped by work center, matching the web kiosk's department color scheme.
