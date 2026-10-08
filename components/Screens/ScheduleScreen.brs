@@ -283,9 +283,7 @@ function buildSectionHeader(section as Object, y as Integer) as Object
 
     loadLabel = CreateObject("roSGNode", "Label")
     loadLabel.text = workCenterLoadText(section)
-    loadLabel.translation = [1450, 20]
-    loadLabel.width = 450
-    loadLabel.horizAlign = "right"
+    loadLabel.translation = [700, 20]
     loadLabel.font = "font:SmallSystemFont"
     loadLabel.color = "0x4AAFFFFF"
     group.appendChild(loadLabel)
