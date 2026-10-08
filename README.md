@@ -14,7 +14,7 @@ Roku's public SDK has no web-view/embedded-browser component, so this channel ca
 
 ### ✨ Features
 * **Native auto-scrolling display** grouped by work center, matching the web kiosk's department color scheme.
-* **Sticky work-center headers** — stays fixed at the top while its jobs scroll past, swapped for the next section's header exactly when it reaches the top (like the web kiosk's `position:sticky` section headers). Each header also shows that work center's current backlog in weeks (e.g. "2.3 wk backlog"), and the size of any real gap in its schedule (e.g. "(1.4 wk gap)") so sales can see where there's actually room to fill — computed server-side by `shop-schedule`.
+* **Sticky work-center headers** — stays fixed at the top while its jobs scroll past, swapped for the next section's header exactly when it reaches the top (like the web kiosk's `position:sticky` section headers). Each header also shows that work center's current backlog (e.g. "2 wk 3 day backlog"), and the size of any real gap in its schedule (e.g. "(1 wk 1 day gap)") so sales can see where there's actually room to fill — computed server-side by `shop-schedule`.
 * **Resilient to network blips** — a failed poll shows a small warning banner without blanking the last good schedule.
 * **Manual scroll** — Up/Down on the remote scrolls directly; auto-scroll resumes automatically a few seconds after the last press.
 * **One-time setup** — enter the server address once; it's remembered in the Roku's registry.

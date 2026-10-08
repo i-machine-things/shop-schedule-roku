@@ -283,46 +283,66 @@ function buildSectionHeader(section as Object, y as Integer) as Object
 
     backlogLabel = CreateObject("roSGNode", "Label")
     backlogLabel.text = workCenterBacklogText(section)
-    backlogLabel.translation = [700, 20]
     backlogLabel.font = "font:SmallSystemFont"
     backlogLabel.color = "0x4AAFFFFF"
+    positionAfter(deptLabel, backlogLabel, 30, 20)
     group.appendChild(backlogLabel)
 
     return group
 end function
 
-' "X.X wk backlog" (or "open now" if nothing's queued), plus the gap size when
-' there's an actual bounded opening right after that point -- matches
+' Positions targetLabel right after refLabel's actual rendered text width,
+' not a fixed offset -- department/work-center-group names vary per shop,
+' and a fixed x collided with "Assembly shop - ASSEMBLY", confirmed on real
+' hardware via screenshot (one of the *shorter* real combinations, not an
+' edge case). Falls back to refLabel's own position (no gap) if
+' boundingRect() ever comes back invalid, rather than crashing.
+sub positionAfter(refLabel as Object, targetLabel as Object, gap as Integer, y as Integer)
+    refWidth = 0
+    rect = refLabel.boundingRect()
+    if rect <> invalid and rect.width <> invalid then refWidth = rect.width
+    targetLabel.translation = [refLabel.translation[0] + refWidth + gap, y]
+end sub
+
+' "2 wk 3 day backlog" (or "open now" if nothing's queued), plus the gap size
+' when there's an actual bounded opening right after that point -- matches
 ' update_schedule.py's generate_html() wording and the same reasoning:
 ' backlog alone says *when* there's room, not *how much*, and a 1-week hole can't
-' take a 2-week job. backlog_weeks/gap_weeks come from schedule.json -- missing
+' take a 2-week job. backlog_days/gap_days come from schedule.json -- missing
 ' (invalid) on data from a shop-schedule version that predates this field,
 ' not just a theoretical case.
 function workCenterBacklogText(section as Object) as String
-    backlogWeeks = 0.0
-    if section.backlog_weeks <> invalid then backlogWeeks = section.backlog_weeks
+    backlogDays = 0
+    if section.backlog_days <> invalid then backlogDays = section.backlog_days
 
-    if backlogWeeks > 0 then
-        text = fmt1(backlogWeeks) + " wk backlog"
+    if backlogDays > 0 then
+        text = fmtWeeksDays(backlogDays) + " backlog"
     else
         text = "open now"
     end if
 
-    if section.gap_weeks <> invalid then
-        text = text + " (" + fmt1(section.gap_weeks) + " wk gap)"
+    if section.gap_days <> invalid then
+        text = text + " (" + fmtWeeksDays(section.gap_days) + " gap)"
     end if
     return text
 end function
 
-' Formats a float to one decimal place as a string. Re-rounds rather than
-' trusting the value is already clean -- ParseJson can hand back e.g.
-' 2.2999999999999998 for a server-sent 2.3, and Str()'s own formatting is
-' locale/precision-dependent, not something to rely on for a fixed 1dp string.
-function fmt1(n as Float) as String
-    scaled = Int(n * 10 + 0.5)
-    whole = scaled \ 10
-    frac = scaled Mod 10
-    return whole.ToStr() + "." + frac.ToStr()
+' "2 wk 3 day" style formatting from a raw day count -- omits a zero
+' component ("3 day" or "2 wk", not "0 wk 3 day"). Matches
+' update_schedule.py's _format_weeks_days() -- schedule.json sends integer
+' days (backlog_days/gap_days), not fractional weeks, so this doesn't need
+' a float-precision workaround the way decimal-weeks formatting would.
+function fmtWeeksDays(daysIn as Dynamic) as String
+    days = Int(daysIn)
+    weeks = days \ 7
+    remDays = days Mod 7
+    if weeks > 0 and remDays > 0 then
+        return weeks.ToStr() + " wk " + remDays.ToStr() + " day"
+    else if weeks > 0 then
+        return weeks.ToStr() + " wk"
+    else
+        return remDays.ToStr() + " day"
+    end if
 end function
 
 ' Always visible once there's at least one section -- deliberately simple.
@@ -348,6 +368,7 @@ sub updateStickyHeader(idx as Integer)
     m.stickyWcLabel.text = section.wc
     m.stickyDeptLabel.text = section.department + "   -   " + section.wc_group
     m.stickyBacklogLabel.text = workCenterBacklogText(section)
+    positionAfter(m.stickyDeptLabel, m.stickyBacklogLabel, 30, 20)
 end sub
 
 function colorsForDept(department as String) as Object
